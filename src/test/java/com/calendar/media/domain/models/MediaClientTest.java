@@ -39,4 +39,37 @@ class MediaClientTest {
         assertThat(users.owns(atLimit)).isTrue();
         assertThat(users.owns(atLimit + "a")).isFalse();
     }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"avatars/u1/", "avatars/u1/sub/", "avatars/89a380b8-f66a-44d0-b9d9-616241080430/"})
+    void ownsPrefix_shouldAcceptAPrefixInsideTheClientsPrefix(String prefix) {
+        assertThat(users.ownsPrefix(prefix)).isTrue();
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {
+            "avatars/",        // the client's whole prefix
+            "avatars",         // not even the prefix
+            "avatars/u1",      // no closing slash: would match avatars/u10/ too
+            "avatars//",       // empty segment
+            "avatars/u1//",    // empty segment
+            "avatars/../",     // traversal
+            "/avatars/u1/",    // leading slash
+            "chat/c1/",        // another client's prefix
+            "avatarsX/u1/",    // looks alike, is not inside
+            "avatars/u 1/",    // space
+            "avatars/u1?x=1/"  // query characters
+    })
+    void ownsPrefix_shouldRefuseABareMalformedOrForeignPrefix(String prefix) {
+        assertThat(users.ownsPrefix(prefix)).isFalse();
+    }
+
+    @Test
+    void ownsPrefix_shouldRefuseAPrefixLongerThanTheLimit() {
+        String atLimit = "avatars/" + "a".repeat(MediaClient.MAX_KEY_LENGTH - "avatars/".length() - 1) + "/";
+        String overLimit = "avatars/" + "a".repeat(MediaClient.MAX_KEY_LENGTH - "avatars/".length()) + "/";
+        assertThat(users.ownsPrefix(atLimit)).isTrue();
+        assertThat(users.ownsPrefix(overLimit)).isFalse();
+    }
 }

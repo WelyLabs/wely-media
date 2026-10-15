@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
@@ -34,6 +35,7 @@ import static org.mockito.Mockito.when;
 class MediaServiceTest {
 
     private static final MediaClient CHAT = new MediaClient("chat", "chat/", "wely-chat-media");
+    private static final MediaClient USERS = new MediaClient("users", "avatars/", "wely-avatars");
     private static final byte[] UPLOAD = {1, 2, 3};
 
     @Mock private ObjectStorage storage;
@@ -117,6 +119,86 @@ class MediaServiceTest {
         StepVerifier.create(service.delete(CHAT, "events/e1/cover.jpg"))
                 .expectErrorMatches(error -> failsWith(error, MediaErrorCode.MEDIA_KEY_FORBIDDEN))
                 .verify();
+
+        verifyNoInteractions(storage);
+    }
+
+    @Test
+    @DisplayName("every key listed under the prefix is deleted from the client's bucket, and counted")
+    void deletePrefix_shouldDeleteEveryListedKeyInTheClientsBucket() {
+        when(storage.list("wely-avatars", "avatars/u1/"))
+                .thenReturn(Flux.just("avatars/u1/a.jpg", "avatars/u1/b.jpg", "avatars/u1/old/c.jpg"));
+        when(storage.delete(eq("wely-avatars"), anyString())).thenReturn(Mono.empty());
+
+        StepVerifier.create(service.deletePrefix(USERS, "avatars/u1/")).expectNext(3L).verifyComplete();
+
+        verify(storage).delete("wely-avatars", "avatars/u1/a.jpg");
+        verify(storage).delete("wely-avatars", "avatars/u1/b.jpg");
+        verify(storage).delete("wely-avatars", "avatars/u1/old/c.jpg");
+    }
+
+    @Test
+    @DisplayName("an empty folder counts nothing and deletes nothing")
+    void deletePrefix_shouldCountNothing_whenNothingIsUnderThePrefix() {
+        when(storage.list("wely-avatars", "avatars/u1/")).thenReturn(Flux.empty());
+
+        StepVerifier.create(service.deletePrefix(USERS, "avatars/u1/")).expectNext(0L).verifyComplete();
+
+        verify(storage, never()).delete(anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("a prefix outside the caller's own is refused before anything is listed")
+    void deletePrefix_shouldRefuseAForeignPrefix_withoutListing() {
+        StepVerifier.create(service.deletePrefix(USERS, "chat/c1/"))
+                .expectErrorMatches(error -> failsWith(error, MediaErrorCode.MEDIA_KEY_FORBIDDEN))
+                .verify();
+        StepVerifier.create(service.deletePrefix(USERS, "avatars/"))
+                .expectErrorMatches(error -> failsWith(error, MediaErrorCode.MEDIA_KEY_FORBIDDEN))
+                .verify();
+
+        verifyNoInteractions(storage);
+    }
+
+    @Test
+    @DisplayName("whatever the listing returns, a key outside the prefix is never deleted")
+    void deletePrefix_shouldNeverDeleteAListedKeyOutsideThePrefix() {
+        when(storage.list("wely-avatars", "avatars/u1/"))
+                .thenReturn(Flux.just("avatars/u1/a.jpg", "avatars/u10/a.jpg", "chat/c1/m1.jpg"));
+        when(storage.delete("wely-avatars", "avatars/u1/a.jpg")).thenReturn(Mono.empty());
+
+        StepVerifier.create(service.deletePrefix(USERS, "avatars/u1/")).expectNext(1L).verifyComplete();
+
+        verify(storage, never()).delete("wely-avatars", "avatars/u10/a.jpg");
+        verify(storage, never()).delete("wely-avatars", "chat/c1/m1.jpg");
+    }
+
+    @Test
+    void deletePrefix_shouldFail_whenListingFails() {
+        when(storage.list("wely-avatars", "avatars/u1/"))
+                .thenReturn(Flux.error(new MediaException(MediaErrorCode.STORAGE_UNAVAILABLE)));
+
+        StepVerifier.create(service.deletePrefix(USERS, "avatars/u1/"))
+                .expectErrorMatches(error -> failsWith(error, MediaErrorCode.STORAGE_UNAVAILABLE))
+                .verify();
+
+        verify(storage, never()).delete(anyString(), anyString());
+    }
+
+    @Test
+    void deletePrefix_shouldFail_whenADeleteFails() {
+        when(storage.list("wely-avatars", "avatars/u1/")).thenReturn(Flux.just("avatars/u1/a.jpg"));
+        when(storage.delete("wely-avatars", "avatars/u1/a.jpg"))
+                .thenReturn(Mono.error(new MediaException(MediaErrorCode.STORAGE_UNAVAILABLE)));
+
+        StepVerifier.create(service.deletePrefix(USERS, "avatars/u1/"))
+                .expectErrorMatches(error -> failsWith(error, MediaErrorCode.STORAGE_UNAVAILABLE))
+                .verify();
+    }
+
+    @Test
+    void deletePrefix_shouldDoNothingUntilSubscribed() {
+        service.deletePrefix(USERS, "avatars/u1/");
 
         verifyNoInteractions(storage);
     }

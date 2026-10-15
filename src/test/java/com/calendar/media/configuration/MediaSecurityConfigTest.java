@@ -58,6 +58,20 @@ class MediaSecurityConfigTest {
     }
 
     @Test
+    @DisplayName("a prefix purge without secret is refused before the service is reached")
+    void internalHttpSecurity_shouldRefuseAPrefixPurgeWithoutSecret() {
+        client().delete().uri("/internal/media/prefix?prefix=avatars/u1/")
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("MED-REQ-001")
+                .jsonPath("$.instance").isEqualTo("/internal/media/prefix");
+
+        verify(mediaService, never()).deletePrefix(any(), anyString());
+    }
+
+    @Test
     void internalHttpSecurity_shouldRefuseAWrongSecret() {
         expectClientUnknown(client().delete().uri(DELETE_URI).header("X-Internal-Secret", "guess").exchange());
     }

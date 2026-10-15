@@ -3,6 +3,8 @@ package com.calendar.media.infrastructure.storage.adapters;
 import com.calendar.media.domain.ports.ObjectStorage;
 import com.calendar.media.exception.MediaErrorCode;
 import com.calendar.media.exception.MediaException;
+import com.calendar.media.infrastructure.storage.listing.ListBucketPage;
+import com.calendar.media.infrastructure.storage.listing.ListBucketResultParser;
 import com.calendar.media.infrastructure.storage.signing.GarageRequestSigner;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -10,43 +12,39 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.net.URI;
 import java.time.Duration;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 
-/**
- * Stores pictures in private Garage buckets through its S3 API, with plain HTTP calls signed by
- * {@link GarageRequestSigner}. Any failure reaching Garage becomes STORAGE_UNAVAILABLE (502).
- *
- * <p>Two endpoints, on purpose. Writes go to the internal Service. Read URLs are signed for the
- * public hostname, because a signature covers the host: one signed for the internal name would be
- * refused when the browser presents it through the tunnel.
- *
- * <p>Every object, and every signed read, says {@code Cache-Control: private}: the hostname sits
- * behind Cloudflare, and a shared cache must never hand a private picture to someone else.
- */
+/** Private Garage buckets through signed S3 calls; any failure reaching Garage becomes STORAGE_UNAVAILABLE. */
 @Component
 public class GarageObjectStorageAdapter implements ObjectStorage {
 
     static final String CACHE_CONTROL = "private, max-age=3600";
-    /** A write is signed just before it is sent: a minute is ample and leaves nothing reusable. */
+    /** An internal request is signed just before it is sent, so a minute is ample. */
     static final Duration WRITE_TTL = Duration.ofMinutes(1);
 
     private final WebClient client;
     private final GarageRequestSigner signer;
     private final URI internalEndpoint;
     private final URI publicEndpoint;
+    private final int listPageSize;
 
     public GarageObjectStorageAdapter(@Qualifier("storageWebClient") WebClient client,
                                       GarageRequestSigner signer,
                                       @Value("${app.storage.internal-endpoint}") URI internalEndpoint,
-                                      @Value("${app.storage.public-endpoint}") URI publicEndpoint) {
+                                      @Value("${app.storage.public-endpoint}") URI publicEndpoint,
+                                      @Value("${app.storage.list-page-size:200}") int listPageSize) {
         this.client = client;
         this.signer = signer;
         this.internalEndpoint = internalEndpoint;
         this.publicEndpoint = publicEndpoint;
+        this.listPageSize = listPageSize;
     }
 
     @Override
@@ -73,11 +71,42 @@ public class GarageObjectStorageAdapter implements ObjectStorage {
                 .onErrorMap(GarageObjectStorageAdapter::unexpected, error -> unavailable());
     }
 
+    /** ListObjectsV2, one signed request per page, following the continuation token. */
+    @Override
+    public Flux<String> list(String bucket, String prefix) {
+        return listPage(bucket, prefix, null)
+                .expand(page -> page.nextToken() == null ? Mono.empty() : listPage(bucket, prefix, page.nextToken()))
+                .concatMapIterable(ListBucketPage::keys);
+    }
+
     @Override
     public String presignGet(String bucket, String key, Duration ttl) {
         return signer.presign(HttpMethod.GET.name(), publicEndpoint, path(bucket, key), ttl,
                         Map.of("response-cache-control", CACHE_CONTROL))
                 .toString();
+    }
+
+    // A token handed back unchanged would loop forever: fail rather than report a partial listing as complete.
+    private Mono<ListBucketPage> listPage(String bucket, String prefix, String token) {
+        return Mono.defer(() -> {
+                    Map<String, String> query = new LinkedHashMap<>();
+                    query.put("list-type", "2");
+                    query.put("prefix", prefix);
+                    query.put("max-keys", Integer.toString(listPageSize));
+                    if (token != null) {
+                        query.put("continuation-token", token);
+                    }
+                    return client.get()
+                            .uri(signer.presign(HttpMethod.GET.name(), internalEndpoint, "/" + bucket, WRITE_TTL, query))
+                            .retrieve()
+                            .bodyToMono(byte[].class)
+                            .switchIfEmpty(Mono.error(() -> new IllegalStateException("Empty bucket listing")))
+                            .map(ListBucketResultParser::parse);
+                })
+                .flatMap(page -> token != null && Objects.equals(page.nextToken(), token)
+                        ? Mono.<ListBucketPage>error(new IllegalStateException("Bucket listing repeated its continuation token"))
+                        : Mono.just(page))
+                .onErrorMap(GarageObjectStorageAdapter::unexpected, error -> unavailable());
     }
 
     /** Path-style addressing: there is no wildcard hostname per bucket. */

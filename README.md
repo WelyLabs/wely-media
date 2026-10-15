@@ -68,6 +68,7 @@ Java 25 · Spring Boot 4 · WebFlux · Spring Security (secret partagé) · Imag
             │ infrastructure/storage     │   │ infrastructure/imaging      │
             │ GarageObjectStorageAdapter │   │ ImageIoImageNormalizerAdapter│
             │ GarageRequestSigner (SigV4)│   └─────────────────────────────┘
+            │ ListBucketResultParser     │
             └────────────┬───────────────┘
                          ▼
                        Garage
@@ -85,6 +86,7 @@ Toutes les routes exigent l'en-tête `X-Internal-Secret`.
 |---|---|---|---|
 | `POST` | `/internal/media` | multipart : `file` (binaire), `key` (texte), `profile` (texte) | **201** `{ "key", "width", "height", "contentType" }` |
 | `DELETE` | `/internal/media?key=…` | — | **204**, y compris si l'objet n'existait plus |
+| `DELETE` | `/internal/media/prefix?prefix=…` | — | **204**, even when nothing matched; see [Prefix purge](#prefix-purge) |
 | `POST` | `/internal/media/urls` | `{ "keys": [...], "ttlSeconds": 3600 }` | **200** `{ "urls": { "<clé>": "<url pré-signée>" } }` |
 
 ### Profils
@@ -101,6 +103,18 @@ Dans tous les cas : JPEG, PNG, GIF ou BMP en entrée ; **JPEG qualité 0,85** en
 ### Clés
 
 Une clé doit commencer par le préfixe de l'appelant, ne contenir que `[A-Za-z0-9/._-]`, ni `..` ni `/` initial, et faire au plus 512 caractères.
+
+### Prefix purge
+
+`DELETE /internal/media/prefix?prefix=avatars/<id>/` deletes **every** object in one of the caller's folders. It serves account deletion: `wely-users` erases `avatars/<businessId>/` with it, including **orphaned old avatars**. Replacing an avatar deletes the old one on a best-effort basis, and no database row references the ones that survived: only walking the folder finds them.
+
+- **Confinement.** The prefix must start with the caller's, end with `/` and name at least one folder below it: `avatars/` alone, `avatars/u1` (which would also cover `avatars/u10/`), `avatars//`, `..` or another service's prefix → **403** `MED-BUS-003`, with nothing listed. Same allowed characters as for a key.
+- **Walk.** `ListObjectsV2`, signed like the writes and sent to the internal Garage, **200 keys per page** (a page stays under the HTTP client's 256 KB buffer), following the continuation token. The XML answer is read with StAX, without DTD or external entity. Any document other than a `ListBucketResult` is refused rather than read as an empty listing, and so is a truncated page without a continuation token: the purge then fails with **502** `MED-TEC-001` instead of answering 204 with keys left.
+- **Deletion.** Each listed key goes through the same `DeleteObject` as `DELETE /internal/media`, four at a time. A key outside the prefix, whatever the walk returns, is never deleted.
+- **Idempotent.** Each call lists what is left: rerunning an interrupted purge, or one that timed out on the caller's side, deletes only the rest and answers **204**.
+- The number of deleted objects is logged with the caller's name, **never the prefix**, which contains a user id.
+
+**Retention after deletion.** A purged picture survives up to **7 days** in Garage's nightly backup (`wely-gitops-infra`): its blocks are kept there through hard links, and its key `avatars/<businessId>/…` appears in each day's `db.sqlite`. Restoring Garage within that window must be followed by a new purge of the accounts deleted since the backup day. The same window covers Garage's own block garbage-collection delay.
 
 ### URLs signées
 
@@ -135,7 +149,7 @@ Un `AuthenticationWebFilter` Spring Security lit `X-Internal-Secret` et le compa
 |---|---|---|
 | `MED-BUS-001` | 400 | Image refusée (format, dimensions, fichier illisible), profil inconnu, partie manquante, plus de 200 clés |
 | `MED-BUS-002` | 413 | Fichier de plus de 12 Mo |
-| `MED-BUS-003` | 403 | Clé malformée ou hors du préfixe de l'appelant |
+| `MED-BUS-003` | 403 | Malformed key or purge prefix, or outside the caller's prefix |
 | `MED-REQ-001` | 401 | `X-Internal-Secret` absent ou inconnu |
 | `MED-TEC-001` | 502 | Garage injoignable ou en refus |
 | `MED-VAL-001` | 400 | Validation du corps JSON, détail par champ |
@@ -216,6 +230,8 @@ kubectl apply -k overlays/local --server-side
 ```
 
 `GarageObjectStorageAdapterIntegrationTest` démarre un vrai Garage (Testcontainers) : il tourne en CI (`CI=true`) ou avec `-Dintegration.tests=true`, et exige un démon Docker.
+
+It covers writes, signed URLs, deletion, and walking a folder over several listing pages without spilling onto a neighbour with a similar name.
 
 > **Note build :** ce service produit dans `target-maven/` et non `target/` en local.
 

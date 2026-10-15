@@ -19,16 +19,11 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Clock;
 import java.time.Duration;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * The storage against a real Garage: what the bucket accepts, what a signed URL opens, and what it
- * refuses. These are properties of Garage itself, and of whether it accepts our signatures, which
- * a stubbed exchange cannot settle.
- *
- * <p>Opt-in: CI sets {@code CI=true}, locally pass {@code -Dintegration.tests=true}.
- */
+/** The storage against a real Garage: what it accepts, lists and refuses, and what a signed URL opens. */
 @Testcontainers
 @EnabledIf("containersRequested")
 class GarageObjectStorageAdapterIntegrationTest {
@@ -36,6 +31,8 @@ class GarageObjectStorageAdapterIntegrationTest {
     private static final String ACCESS_KEY = "GK0123456789abcdef01234567";
     private static final String SECRET_KEY = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
     private static final String BUCKET = "wely-media-test";
+    /** Small on purpose: a handful of objects already spans several listing pages. */
+    private static final int LIST_PAGE_SIZE = 2;
 
     @Container
     static final GenericContainer<?> GARAGE = new GenericContainer<>("dxflrs/garage:v2.4.1")
@@ -64,7 +61,8 @@ class GarageObjectStorageAdapterIntegrationTest {
 
         URI endpoint = URI.create("http://" + GARAGE.getHost() + ":" + GARAGE.getMappedPort(3900));
         storage = new GarageObjectStorageAdapter(new StorageClientConfig().storageWebClient(),
-                new GarageRequestSigner(ACCESS_KEY, SECRET_KEY, "garage", Clock.systemUTC()), endpoint, endpoint);
+                new GarageRequestSigner(ACCESS_KEY, SECRET_KEY, "garage", Clock.systemUTC()), endpoint, endpoint,
+                LIST_PAGE_SIZE);
     }
 
     private static String admin(String endpoint, String body) throws IOException, InterruptedException {
@@ -80,6 +78,16 @@ class GarageObjectStorageAdapterIntegrationTest {
 
     private static HttpResponse<byte[]> get(String url) throws IOException, InterruptedException {
         return HTTP.send(HttpRequest.newBuilder(URI.create(url)).build(), HttpResponse.BodyHandlers.ofByteArray());
+    }
+
+    private static void putAll(String... keys) {
+        for (String key : keys) {
+            storage.put(BUCKET, key, new byte[] {1}, "image/jpeg").block();
+        }
+    }
+
+    private static List<String> listed(String prefix) {
+        return storage.list(BUCKET, prefix).collectList().block(Duration.ofSeconds(30));
     }
 
     @Test
@@ -125,5 +133,40 @@ class GarageObjectStorageAdapterIntegrationTest {
         storage.delete(BUCKET, "avatars/u4/a.jpg").block();
 
         assertThat(get(signed).statusCode()).isEqualTo(404);
+    }
+
+    @Test
+    @DisplayName("every key under the prefix is listed, across pages, and Garage accepts the signed listing")
+    void list_shouldListEveryKeyUnderThePrefixAcrossPages() {
+        putAll("avatars/l1/a.jpg", "avatars/l1/b.jpg", "avatars/l1/c.jpg", "avatars/l1/old/d.jpg",
+                "avatars/l1/old/e.jpg", "avatars/l2/a.jpg");
+
+        assertThat(listed("avatars/l1/")).containsExactlyInAnyOrder("avatars/l1/a.jpg", "avatars/l1/b.jpg",
+                "avatars/l1/c.jpg", "avatars/l1/old/d.jpg", "avatars/l1/old/e.jpg");
+    }
+
+    @Test
+    @DisplayName("a folder's listing never reaches a sibling whose name only starts the same")
+    void list_shouldNotMatchASiblingPrefix() {
+        putAll("avatars/l5/a.jpg", "avatars/l50/a.jpg");
+
+        assertThat(listed("avatars/l5/")).containsExactly("avatars/l5/a.jpg");
+    }
+
+    @Test
+    void list_shouldBeEmpty_forAPrefixWithNothingUnderIt() {
+        assertThat(listed("avatars/nobody/")).isEmpty();
+    }
+
+    @Test
+    @DisplayName("once every listed key is deleted, a second purge finds nothing left: the purge can be run again")
+    void list_shouldBeEmpty_afterEveryListedKeyIsDeleted() {
+        putAll("avatars/l7/a.jpg", "avatars/l7/b.jpg", "avatars/l7/c.jpg");
+
+        for (String key : listed("avatars/l7/")) {
+            storage.delete(BUCKET, key).block();
+        }
+
+        assertThat(listed("avatars/l7/")).isEmpty();
     }
 }
