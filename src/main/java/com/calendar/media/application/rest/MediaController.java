@@ -10,6 +10,8 @@ import com.calendar.media.domain.services.MediaService;
 import com.calendar.media.exception.MediaErrorCode;
 import com.calendar.media.exception.MediaException;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.io.buffer.DataBufferLimitException;
 import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.http.HttpStatus;
@@ -31,16 +33,15 @@ import reactor.core.publisher.Mono;
 import java.time.Duration;
 import java.util.Locale;
 
-/**
- * Internal API: called by the business services, never routed by the gateway. The caller is the
- * {@link MediaClient} resolved from {@code X-Internal-Secret}.
- */
+/** Internal API for the business services, each one resolved from {@code X-Internal-Secret}. */
 @RestController
 @RequestMapping("/internal/media")
 public class MediaController {
 
     /** Above this, refused before decoding. */
     static final int MAX_UPLOAD_BYTES = 12 * 1024 * 1024;
+
+    private static final Logger log = LoggerFactory.getLogger(MediaController.class);
 
     private final MediaService mediaService;
     private final MediaDtoMapper mapper;
@@ -81,6 +82,15 @@ public class MediaController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public Mono<Void> delete(@AuthenticationPrincipal MediaClient client, @RequestParam String key) {
         return mediaService.delete(client, key);
+    }
+
+    /** Deletes every object under a folder of the caller's prefix; 204 even when nothing matched. */
+    @DeleteMapping("/prefix")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public Mono<Void> deletePrefix(@AuthenticationPrincipal MediaClient client, @RequestParam String prefix) {
+        return mediaService.deletePrefix(client, prefix)
+                .doOnNext(count -> log.info("Prefix purge by {}: {} objects", client.name(), count))
+                .then();
     }
 
     @PostMapping(path = "/urls", consumes = MediaType.APPLICATION_JSON_VALUE)

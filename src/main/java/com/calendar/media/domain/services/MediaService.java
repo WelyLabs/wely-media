@@ -16,16 +16,14 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * Stores, removes and signs pictures for a calling service. Access rules stay in the caller;
- * this service only confines each caller to its own bucket and key prefix.
- */
+/** Stores, removes and signs pictures, confining each calling service to its own bucket and key prefix. */
 public class MediaService {
 
     static final Duration DEFAULT_TTL = Duration.ofHours(1);
     static final Duration MIN_TTL = Duration.ofMinutes(1);
     static final Duration MAX_TTL = Duration.ofHours(12);
     static final int MAX_KEYS = 200;
+    static final int PURGE_CONCURRENCY = 4;
 
     private final ObjectStorage storage;
     private final ImageNormalizer normalizer;
@@ -50,6 +48,17 @@ public class MediaService {
     public Mono<Void> delete(MediaClient client, String key) {
         return Mono.defer(() -> client.owns(key)
                 ? storage.delete(client.bucket(), key)
+                : Mono.error(forbidden()));
+    }
+
+    /** Deletes and counts every object under the prefix; a forbidden prefix is refused before listing. */
+    public Mono<Long> deletePrefix(MediaClient client, String prefix) {
+        return Mono.defer(() -> client.ownsPrefix(prefix)
+                ? storage.list(client.bucket(), prefix)
+                        // Defensive: whatever the listing returns, nothing outside the prefix is deleted.
+                        .filter(key -> key.startsWith(prefix) && client.owns(key))
+                        .flatMap(key -> storage.delete(client.bucket(), key).thenReturn(key), PURGE_CONCURRENCY)
+                        .count()
                 : Mono.error(forbidden()));
     }
 

@@ -184,6 +184,58 @@ class MediaControllerTest {
                 .expectBody().jsonPath("$.code").isEqualTo("MED-REQ-000");
     }
 
+    private WebTestClient.ResponseSpec purge(String prefix) {
+        return client().delete().uri(uri -> uri.path("/internal/media/prefix").queryParam("prefix", prefix).build())
+                .exchange();
+    }
+
+    @Test
+    @DisplayName("a prefix purge runs as the calling client and answers 204 with no body")
+    void deletePrefix_shouldAnswer204() {
+        when(mediaService.deletePrefix(CHAT, "chat/c1/")).thenReturn(Mono.just(3L));
+
+        purge("chat/c1/").expectStatus().isNoContent().expectBody().isEmpty();
+
+        verify(mediaService).deletePrefix(CHAT, "chat/c1/");
+    }
+
+    @Test
+    void deletePrefix_shouldAnswer204_whenNothingMatched() {
+        when(mediaService.deletePrefix(CHAT, "chat/c1/")).thenReturn(Mono.just(0L));
+
+        purge("chat/c1/").expectStatus().isNoContent();
+    }
+
+    @Test
+    void deletePrefix_shouldAnswer403_whenThePrefixIsForbidden() {
+        when(mediaService.deletePrefix(CHAT, "avatars/u1/"))
+                .thenReturn(Mono.error(new MediaException(MediaErrorCode.MEDIA_KEY_FORBIDDEN)));
+
+        purge("avatars/u1/")
+                .expectStatus().isForbidden()
+                .expectBody().jsonPath("$.code").isEqualTo("MED-BUS-003");
+    }
+
+    @Test
+    void deletePrefix_shouldAnswer400_whenThePrefixIsMissing() {
+        client().delete().uri("/internal/media/prefix")
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody().jsonPath("$.code").isEqualTo("MED-REQ-000");
+
+        verify(mediaService, never()).deletePrefix(any(), any());
+    }
+
+    @Test
+    void deletePrefix_shouldAnswer502_whenTheStorageIsDown() {
+        when(mediaService.deletePrefix(CHAT, "chat/c1/"))
+                .thenReturn(Mono.error(new MediaException(MediaErrorCode.STORAGE_UNAVAILABLE)));
+
+        purge("chat/c1/")
+                .expectStatus().isEqualTo(502)
+                .expectBody().jsonPath("$.code").isEqualTo("MED-TEC-001");
+    }
+
     @Test
     void urls_shouldAnswerTheSignedUrlsByKey() {
         when(mediaService.urls(CHAT, List.of("chat/a.jpg"), Duration.ofSeconds(600)))
