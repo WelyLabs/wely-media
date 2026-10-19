@@ -2,7 +2,7 @@
 
 Service **interne de stockage des images** de la plateforme [Wely Calendar](https://github.com/WelyLabs/wely-platform).
 
-Il possède les octets de chaque image — avatars, photos de conversation, couvertures et justificatifs d'événements — et rien d'autre. Les règles d'accès restent dans les services métier, qui l'appellent en HTTP.
+Il possède les octets de chaque image — avatars, photos de conversation, couvertures et justificatifs d'événements, images des communautés — et rien d'autre. Les règles d'accès restent dans les services métier, qui l'appellent en HTTP.
 
 ---
 
@@ -12,7 +12,7 @@ Il possède les octets de chaque image — avatars, photos de conversation, couv
 |---|---|
 | **Port** | 8085 |
 | **Préfixe HTTP** | aucun — les routes sont sous `/internal/media` |
-| **Exposition** | aucune route gateway ; Service `ClusterIP`, appelé par `wely-users`, `wely-chat`, `wely-events` |
+| **Exposition** | aucune route gateway ; Service `ClusterIP`, appelé par `wely-users`, `wely-chat`, `wely-events`, `wely-social` |
 | **Stockage** | Garage (API S3), un bucket par service appelant |
 
 ---
@@ -33,7 +33,7 @@ Java 25 · Spring Boot 4 · WebFlux · Spring Security (secret partagé) · Imag
 | **Pas de route gateway** | Le navigateur ne parle jamais à `wely-media`. Il reçoit d'un service métier une URL Garage **pré-signée**, à durée limitée, et télécharge directement l'image. |
 
 ```
-  navigateur ──REST──▶ gateway ──▶ wely-users / wely-chat / wely-events
+  navigateur ──REST──▶ gateway ──▶ wely-users / wely-chat / wely-events / wely-social
       │                                  │  vérifie les droits
       │                                  │  X-Internal-Secret
       │                                  ▼
@@ -192,9 +192,11 @@ Toutes les réponses d'erreur sont des `ProblemDetail` (RFC 7807) :
 | `INTERNAL_SECRET_USERS` | vide | Secret de `wely-users` (préfixe `avatars/`) |
 | `INTERNAL_SECRET_CHAT` | vide | Secret de `wely-chat` (préfixe `chat/`) |
 | `INTERNAL_SECRET_EVENTS` | vide | Secret de `wely-events` (préfixe `events/`) |
+| `INTERNAL_SECRET_SOCIAL` | vide | Secret de `wely-social` (préfixe `communities/`) |
 | `AVATARS_BUCKET` | `wely-avatars` | Bucket de `wely-users` |
 | `CHAT_BUCKET` | `wely-chat-media` | Bucket de `wely-chat` |
 | `EVENTS_BUCKET` | `wely-event-media` | Bucket de `wely-events` |
+| `COMMUNITIES_BUCKET` | `wely-community-media` | Bucket de `wely-social` |
 
 Un nouvel appelant s'ajoute par trois propriétés `app.clients.<nom>.{secret,prefix,bucket}`. Le préfixe doit se terminer par `/`.
 
@@ -241,5 +243,5 @@ It covers writes, signed URLs, deletion, and walking a folder over several listi
 
 - **Une seule réplique.** Le service est sans état et pourrait monter en charge horizontalement, mais il n'est déployé et éprouvé qu'à `replicas: 1`.
 - **L'image entière est en mémoire.** Le fichier reçu, l'image décodée (jusqu'à 160 Mo pour 40 mégapixels) et le JPEG produit coexistent le temps du traitement. Le plafond de 12 Mo par fichier et la limite de pixels bornent ce coût, mais plusieurs envois simultanés s'additionnent.
-- **Pas de `NetworkPolicy`.** Tout pod du cluster peut joindre le Service : le secret partagé est la seule barrière. Une politique réseau limitant l'accès à `wely-users`, `wely-chat` et `wely-events` doublerait cette protection.
+- **Pas de `NetworkPolicy`.** Tout pod du cluster peut joindre le Service : le secret partagé est la seule barrière. Une politique réseau limitant l'accès à `wely-users`, `wely-chat`, `wely-events` et `wely-social` doublerait cette protection.
 - **Pas de rotation de secret à chaud.** Changer un secret demande de redémarrer `wely-media` et l'appelant concerné.
