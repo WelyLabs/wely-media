@@ -1,8 +1,9 @@
 package com.calendar.media.infrastructure.storage.adapters;
 
 import com.calendar.media.domain.ports.ObjectStorage;
-import com.calendar.media.exception.MediaErrorCode;
-import com.calendar.media.exception.MediaException;
+import com.calendar.media.exception.BusinessException;
+import com.calendar.media.exception.TechnicalErrorCode;
+import com.calendar.media.exception.TechnicalException;
 import com.calendar.media.infrastructure.storage.listing.ListBucketPage;
 import com.calendar.media.infrastructure.storage.listing.ListBucketResultParser;
 import com.calendar.media.infrastructure.storage.signing.GarageRequestSigner;
@@ -57,7 +58,7 @@ public class GarageObjectStorageAdapter implements ObjectStorage {
                         .retrieve()
                         .toBodilessEntity()
                         .then())
-                .onErrorMap(GarageObjectStorageAdapter::unexpected, error -> unavailable());
+                .onErrorMap(GarageObjectStorageAdapter::unexpected, GarageObjectStorageAdapter::unavailable);
     }
 
     /** Garage answers 204 for a missing key too, so deleting twice is not an error. */
@@ -68,7 +69,7 @@ public class GarageObjectStorageAdapter implements ObjectStorage {
                         .retrieve()
                         .toBodilessEntity()
                         .then())
-                .onErrorMap(GarageObjectStorageAdapter::unexpected, error -> unavailable());
+                .onErrorMap(GarageObjectStorageAdapter::unexpected, GarageObjectStorageAdapter::unavailable);
     }
 
     /** ListObjectsV2, one signed request per page, following the continuation token. */
@@ -106,7 +107,7 @@ public class GarageObjectStorageAdapter implements ObjectStorage {
                 .flatMap(page -> token != null && Objects.equals(page.nextToken(), token)
                         ? Mono.<ListBucketPage>error(new IllegalStateException("Bucket listing repeated its continuation token"))
                         : Mono.just(page))
-                .onErrorMap(GarageObjectStorageAdapter::unexpected, error -> unavailable());
+                .onErrorMap(GarageObjectStorageAdapter::unexpected, GarageObjectStorageAdapter::unavailable);
     }
 
     /** Path-style addressing: there is no wildcard hostname per bucket. */
@@ -114,11 +115,12 @@ public class GarageObjectStorageAdapter implements ObjectStorage {
         return "/" + bucket + "/" + key;
     }
 
+    /** An error that already carries a code, business or technical, goes through unchanged. */
     private static boolean unexpected(Throwable error) {
-        return !(error instanceof MediaException);
+        return !(error instanceof BusinessException || error instanceof TechnicalException);
     }
 
-    private static MediaException unavailable() {
-        return new MediaException(MediaErrorCode.STORAGE_UNAVAILABLE);
+    private static TechnicalException unavailable(Throwable cause) {
+        return new TechnicalException(TechnicalErrorCode.STORAGE_UNAVAILABLE, cause);
     }
 }

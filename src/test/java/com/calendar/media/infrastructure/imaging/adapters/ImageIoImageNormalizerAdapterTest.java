@@ -2,8 +2,8 @@ package com.calendar.media.infrastructure.imaging.adapters;
 
 import com.calendar.media.domain.models.MediaProfile;
 import com.calendar.media.domain.models.NormalizedImage;
-import com.calendar.media.exception.MediaErrorCode;
-import com.calendar.media.exception.MediaException;
+import com.calendar.media.exception.BusinessErrorCode;
+import com.calendar.media.exception.BusinessException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -52,7 +52,7 @@ class ImageIoImageNormalizerAdapterTest {
     }
 
     private static boolean invalid(Throwable error) {
-        return error instanceof MediaException media && media.getErrorCode() == MediaErrorCode.MEDIA_INVALID;
+        return error instanceof BusinessException business && business.getErrorCode() == BusinessErrorCode.MEDIA_INVALID;
     }
 
     @Test

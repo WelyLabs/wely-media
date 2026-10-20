@@ -4,8 +4,10 @@ import com.calendar.media.domain.models.MediaClient;
 import com.calendar.media.domain.models.MediaProfile;
 import com.calendar.media.domain.models.StoredMedia;
 import com.calendar.media.domain.services.MediaService;
-import com.calendar.media.exception.MediaErrorCode;
-import com.calendar.media.exception.MediaException;
+import com.calendar.media.exception.BusinessErrorCode;
+import com.calendar.media.exception.BusinessException;
+import com.calendar.media.exception.TechnicalErrorCode;
+import com.calendar.media.exception.TechnicalException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Value;
@@ -137,7 +139,7 @@ class MediaControllerTest {
     @Test
     void store_shouldAnswer403_whenTheKeyIsForbidden() {
         when(mediaService.store(eq(CHAT), eq("avatars/u1.jpg"), any(), any()))
-                .thenReturn(Mono.error(new MediaException(MediaErrorCode.MEDIA_KEY_FORBIDDEN)));
+                .thenReturn(Mono.error(new BusinessException(BusinessErrorCode.MEDIA_KEY_FORBIDDEN)));
 
         upload(form(new byte[] {1}, "avatars/u1.jpg", "AVATAR"))
                 .expectStatus().isForbidden()
@@ -147,7 +149,7 @@ class MediaControllerTest {
     @Test
     void store_shouldAnswer502_whenTheStorageIsDown() {
         when(mediaService.store(eq(CHAT), anyString(), any(), any()))
-                .thenReturn(Mono.error(new MediaException(MediaErrorCode.STORAGE_UNAVAILABLE)));
+                .thenReturn(Mono.error(new TechnicalException(TechnicalErrorCode.STORAGE_UNAVAILABLE)));
 
         upload(form(new byte[] {1}, "chat/c1/m1.jpg", "PHOTO"))
                 .expectStatus().isEqualTo(502)
@@ -168,7 +170,7 @@ class MediaControllerTest {
     @Test
     void delete_shouldAnswer403_whenTheKeyIsForbidden() {
         when(mediaService.delete(CHAT, "events/e1.jpg"))
-                .thenReturn(Mono.error(new MediaException(MediaErrorCode.MEDIA_KEY_FORBIDDEN)));
+                .thenReturn(Mono.error(new BusinessException(BusinessErrorCode.MEDIA_KEY_FORBIDDEN)));
 
         client().delete().uri(uri -> uri.path("/internal/media").queryParam("key", "events/e1.jpg").build())
                 .exchange()
@@ -209,7 +211,7 @@ class MediaControllerTest {
     @Test
     void deletePrefix_shouldAnswer403_whenThePrefixIsForbidden() {
         when(mediaService.deletePrefix(CHAT, "avatars/u1/"))
-                .thenReturn(Mono.error(new MediaException(MediaErrorCode.MEDIA_KEY_FORBIDDEN)));
+                .thenReturn(Mono.error(new BusinessException(BusinessErrorCode.MEDIA_KEY_FORBIDDEN)));
 
         purge("avatars/u1/")
                 .expectStatus().isForbidden()
@@ -229,7 +231,7 @@ class MediaControllerTest {
     @Test
     void deletePrefix_shouldAnswer502_whenTheStorageIsDown() {
         when(mediaService.deletePrefix(CHAT, "chat/c1/"))
-                .thenReturn(Mono.error(new MediaException(MediaErrorCode.STORAGE_UNAVAILABLE)));
+                .thenReturn(Mono.error(new TechnicalException(TechnicalErrorCode.STORAGE_UNAVAILABLE)));
 
         purge("chat/c1/")
                 .expectStatus().isEqualTo(502)

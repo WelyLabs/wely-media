@@ -1,12 +1,13 @@
 package com.calendar.media.exception;
 
 /**
- * Outcomes this service refuses on, each with a stable code.
+ * Outcomes this service refuses on, each with a stable code. A dependency failing is not a
+ * refusal: that is a {@link TechnicalErrorCode}.
  *
  * <p>{@code code} is what a caller branches on; the status is a plain int so the domain can raise
  * these without depending on Spring.
  */
-public enum MediaErrorCode {
+public enum BusinessErrorCode {
 
     MEDIA_INVALID(
             "MED-BUS-001",
@@ -30,20 +31,14 @@ public enum MediaErrorCode {
             "MED-REQ-001",
             "Unknown caller",
             "The X-Internal-Secret header is missing or matches no configured client.",
-            401),
-
-    STORAGE_UNAVAILABLE(
-            "MED-TEC-001",
-            "Storage unavailable",
-            "The object storage could not be reached; try again shortly.",
-            502);
+            401);
 
     private final String code;
     private final String title;
     private final String detail;
     private final int status;
 
-    MediaErrorCode(String code, String title, String detail, int status) {
+    BusinessErrorCode(String code, String title, String detail, int status) {
         this.code = code;
         this.title = title;
         this.detail = detail;

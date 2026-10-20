@@ -30,7 +30,8 @@ class ProblemDetailAuthenticationEntryPointTest {
                         .contains("\"status\":401")
                         .contains("\"instance\":\"/internal/media\"")
                         .contains("\"type\":\"https://welylabs.app/problems/med-req-001\"")
-                        .contains("\"timestamp\""))
+                        .contains("\"timestamp\"")
+                        .contains("\"requestId\":\"" + exchange.getRequest().getId() + "\""))
                 .verifyComplete();
     }
 }

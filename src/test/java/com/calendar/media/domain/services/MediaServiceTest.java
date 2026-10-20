@@ -6,8 +6,10 @@ import com.calendar.media.domain.models.NormalizedImage;
 import com.calendar.media.domain.models.StoredMedia;
 import com.calendar.media.domain.ports.ImageNormalizer;
 import com.calendar.media.domain.ports.ObjectStorage;
-import com.calendar.media.exception.MediaErrorCode;
-import com.calendar.media.exception.MediaException;
+import com.calendar.media.exception.BusinessErrorCode;
+import com.calendar.media.exception.BusinessException;
+import com.calendar.media.exception.TechnicalErrorCode;
+import com.calendar.media.exception.TechnicalException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -48,8 +50,12 @@ class MediaServiceTest {
         service = new MediaService(storage, normalizer);
     }
 
-    private static boolean failsWith(Throwable error, MediaErrorCode code) {
-        return error instanceof MediaException media && media.getErrorCode() == code;
+    private static boolean failsWith(Throwable error, BusinessErrorCode code) {
+        return error instanceof BusinessException business && business.getErrorCode() == code;
+    }
+
+    private static boolean failsWith(Throwable error, TechnicalErrorCode code) {
+        return error instanceof TechnicalException technical && technical.getErrorCode() == code;
     }
 
     @Test
@@ -68,7 +74,7 @@ class MediaServiceTest {
     @DisplayName("a key outside the caller's prefix is refused before the upload is decoded")
     void store_shouldRefuseAForeignKey_withoutDecoding() {
         StepVerifier.create(service.store(CHAT, "avatars/u1/a.jpg", UPLOAD, MediaProfile.AVATAR))
-                .expectErrorMatches(error -> failsWith(error, MediaErrorCode.MEDIA_KEY_FORBIDDEN))
+                .expectErrorMatches(error -> failsWith(error, BusinessErrorCode.MEDIA_KEY_FORBIDDEN))
                 .verify();
 
         verifyNoInteractions(normalizer, storage);
@@ -84,10 +90,10 @@ class MediaServiceTest {
     @Test
     void store_shouldNotWrite_whenTheUploadIsRefused() {
         when(normalizer.normalize(UPLOAD, MediaProfile.PHOTO))
-                .thenReturn(Mono.error(new MediaException(MediaErrorCode.MEDIA_INVALID)));
+                .thenReturn(Mono.error(new BusinessException(BusinessErrorCode.MEDIA_INVALID)));
 
         StepVerifier.create(service.store(CHAT, "chat/c1/m1.jpg", UPLOAD, MediaProfile.PHOTO))
-                .expectErrorMatches(error -> failsWith(error, MediaErrorCode.MEDIA_INVALID))
+                .expectErrorMatches(error -> failsWith(error, BusinessErrorCode.MEDIA_INVALID))
                 .verify();
 
         verify(storage, never()).put(anyString(), anyString(), any(), anyString());
@@ -98,10 +104,10 @@ class MediaServiceTest {
         when(normalizer.normalize(UPLOAD, MediaProfile.PHOTO))
                 .thenReturn(Mono.just(new NormalizedImage(new byte[] {9}, "image/jpeg", 10, 10)));
         when(storage.put(anyString(), anyString(), any(), anyString()))
-                .thenReturn(Mono.error(new MediaException(MediaErrorCode.STORAGE_UNAVAILABLE)));
+                .thenReturn(Mono.error(new TechnicalException(TechnicalErrorCode.STORAGE_UNAVAILABLE)));
 
         StepVerifier.create(service.store(CHAT, "chat/c1/m1.jpg", UPLOAD, MediaProfile.PHOTO))
-                .expectErrorMatches(error -> failsWith(error, MediaErrorCode.STORAGE_UNAVAILABLE))
+                .expectErrorMatches(error -> failsWith(error, TechnicalErrorCode.STORAGE_UNAVAILABLE))
                 .verify();
     }
 
@@ -117,7 +123,7 @@ class MediaServiceTest {
     @Test
     void delete_shouldRefuseAForeignKey() {
         StepVerifier.create(service.delete(CHAT, "events/e1/cover.jpg"))
-                .expectErrorMatches(error -> failsWith(error, MediaErrorCode.MEDIA_KEY_FORBIDDEN))
+                .expectErrorMatches(error -> failsWith(error, BusinessErrorCode.MEDIA_KEY_FORBIDDEN))
                 .verify();
 
         verifyNoInteractions(storage);
@@ -151,10 +157,10 @@ class MediaServiceTest {
     @DisplayName("a prefix outside the caller's own is refused before anything is listed")
     void deletePrefix_shouldRefuseAForeignPrefix_withoutListing() {
         StepVerifier.create(service.deletePrefix(USERS, "chat/c1/"))
-                .expectErrorMatches(error -> failsWith(error, MediaErrorCode.MEDIA_KEY_FORBIDDEN))
+                .expectErrorMatches(error -> failsWith(error, BusinessErrorCode.MEDIA_KEY_FORBIDDEN))
                 .verify();
         StepVerifier.create(service.deletePrefix(USERS, "avatars/"))
-                .expectErrorMatches(error -> failsWith(error, MediaErrorCode.MEDIA_KEY_FORBIDDEN))
+                .expectErrorMatches(error -> failsWith(error, BusinessErrorCode.MEDIA_KEY_FORBIDDEN))
                 .verify();
 
         verifyNoInteractions(storage);
@@ -176,10 +182,10 @@ class MediaServiceTest {
     @Test
     void deletePrefix_shouldFail_whenListingFails() {
         when(storage.list("wely-avatars", "avatars/u1/"))
-                .thenReturn(Flux.error(new MediaException(MediaErrorCode.STORAGE_UNAVAILABLE)));
+                .thenReturn(Flux.error(new TechnicalException(TechnicalErrorCode.STORAGE_UNAVAILABLE)));
 
         StepVerifier.create(service.deletePrefix(USERS, "avatars/u1/"))
-                .expectErrorMatches(error -> failsWith(error, MediaErrorCode.STORAGE_UNAVAILABLE))
+                .expectErrorMatches(error -> failsWith(error, TechnicalErrorCode.STORAGE_UNAVAILABLE))
                 .verify();
 
         verify(storage, never()).delete(anyString(), anyString());
@@ -189,10 +195,10 @@ class MediaServiceTest {
     void deletePrefix_shouldFail_whenADeleteFails() {
         when(storage.list("wely-avatars", "avatars/u1/")).thenReturn(Flux.just("avatars/u1/a.jpg"));
         when(storage.delete("wely-avatars", "avatars/u1/a.jpg"))
-                .thenReturn(Mono.error(new MediaException(MediaErrorCode.STORAGE_UNAVAILABLE)));
+                .thenReturn(Mono.error(new TechnicalException(TechnicalErrorCode.STORAGE_UNAVAILABLE)));
 
         StepVerifier.create(service.deletePrefix(USERS, "avatars/u1/"))
-                .expectErrorMatches(error -> failsWith(error, MediaErrorCode.STORAGE_UNAVAILABLE))
+                .expectErrorMatches(error -> failsWith(error, TechnicalErrorCode.STORAGE_UNAVAILABLE))
                 .verify();
     }
 
@@ -222,7 +228,7 @@ class MediaServiceTest {
     @DisplayName("one key outside the prefix refuses the whole batch, and nothing is signed")
     void urls_shouldRefuseTheBatch_whenOneKeyIsForeign() {
         StepVerifier.create(service.urls(CHAT, List.of("chat/a.jpg", "avatars/u1/a.jpg"), Duration.ofHours(1)))
-                .expectErrorMatches(error -> failsWith(error, MediaErrorCode.MEDIA_KEY_FORBIDDEN))
+                .expectErrorMatches(error -> failsWith(error, BusinessErrorCode.MEDIA_KEY_FORBIDDEN))
                 .verify();
 
         verifyNoInteractions(storage);
@@ -233,7 +239,7 @@ class MediaServiceTest {
         List<String> keys = IntStream.rangeClosed(0, MediaService.MAX_KEYS).mapToObj(i -> "chat/" + i + ".jpg").toList();
 
         StepVerifier.create(service.urls(CHAT, keys, Duration.ofHours(1)))
-                .expectErrorMatches(error -> failsWith(error, MediaErrorCode.MEDIA_INVALID))
+                .expectErrorMatches(error -> failsWith(error, BusinessErrorCode.MEDIA_INVALID))
                 .verify();
     }
 

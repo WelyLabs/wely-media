@@ -1,6 +1,6 @@
 package com.calendar.media.application.security;
 
-import com.calendar.media.exception.MediaErrorCode;
+import com.calendar.media.exception.BusinessErrorCode;
 import com.calendar.media.exception.ProblemDetails;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -27,7 +27,7 @@ public class ProblemDetailAuthenticationEntryPoint implements ServerAuthenticati
     @Override
     public Mono<Void> commence(ServerWebExchange exchange, AuthenticationException ex) {
         return Mono.defer(() -> {
-            ProblemDetail problem = ProblemDetails.of(MediaErrorCode.CLIENT_UNKNOWN, exchange.getRequest().getPath().value());
+            ProblemDetail problem = ProblemDetails.of(BusinessErrorCode.CLIENT_UNKNOWN, exchange);
             ServerHttpResponse response = exchange.getResponse();
             response.setStatusCode(HttpStatus.UNAUTHORIZED);
             response.getHeaders().setContentType(MediaType.APPLICATION_PROBLEM_JSON);

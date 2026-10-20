@@ -3,8 +3,8 @@ package com.calendar.media.infrastructure.imaging.adapters;
 import com.calendar.media.domain.models.MediaProfile;
 import com.calendar.media.domain.models.NormalizedImage;
 import com.calendar.media.domain.ports.ImageNormalizer;
-import com.calendar.media.exception.MediaErrorCode;
-import com.calendar.media.exception.MediaException;
+import com.calendar.media.exception.BusinessErrorCode;
+import com.calendar.media.exception.BusinessException;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
@@ -75,8 +75,8 @@ public class ImageIoImageNormalizerAdapter implements ImageNormalizer {
                 }
                 return reader.read(0);
             } catch (IOException | RuntimeException unreadable) {
-                if (unreadable instanceof MediaException media) {
-                    throw media;
+                if (unreadable instanceof BusinessException business) {
+                    throw business;
                 }
                 throw invalid();
             } finally {
@@ -141,7 +141,7 @@ public class ImageIoImageNormalizerAdapter implements ImageNormalizer {
         return bytes.toByteArray();
     }
 
-    private static MediaException invalid() {
-        return new MediaException(MediaErrorCode.MEDIA_INVALID);
+    private static BusinessException invalid() {
+        return new BusinessException(BusinessErrorCode.MEDIA_INVALID);
     }
 }

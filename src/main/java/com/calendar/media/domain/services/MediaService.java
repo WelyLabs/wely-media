@@ -5,8 +5,8 @@ import com.calendar.media.domain.models.MediaProfile;
 import com.calendar.media.domain.models.StoredMedia;
 import com.calendar.media.domain.ports.ImageNormalizer;
 import com.calendar.media.domain.ports.ObjectStorage;
-import com.calendar.media.exception.MediaErrorCode;
-import com.calendar.media.exception.MediaException;
+import com.calendar.media.exception.BusinessErrorCode;
+import com.calendar.media.exception.BusinessException;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
@@ -67,7 +67,7 @@ public class MediaService {
         return Mono.fromCallable(() -> {
             Set<String> unique = new LinkedHashSet<>(keys);
             if (unique.size() > MAX_KEYS) {
-                throw new MediaException(MediaErrorCode.MEDIA_INVALID);
+                throw new BusinessException(BusinessErrorCode.MEDIA_INVALID);
             }
             if (!unique.stream().allMatch(client::owns)) {
                 throw forbidden();
@@ -89,7 +89,7 @@ public class MediaService {
         return ttl.compareTo(MAX_TTL) > 0 ? MAX_TTL : ttl;
     }
 
-    private static MediaException forbidden() {
-        return new MediaException(MediaErrorCode.MEDIA_KEY_FORBIDDEN);
+    private static BusinessException forbidden() {
+        return new BusinessException(BusinessErrorCode.MEDIA_KEY_FORBIDDEN);
     }
 }

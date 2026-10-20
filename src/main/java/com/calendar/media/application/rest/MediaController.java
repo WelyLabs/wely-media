@@ -7,8 +7,8 @@ import com.calendar.media.application.mappers.MediaDtoMapper;
 import com.calendar.media.domain.models.MediaClient;
 import com.calendar.media.domain.models.MediaProfile;
 import com.calendar.media.domain.services.MediaService;
-import com.calendar.media.exception.MediaErrorCode;
-import com.calendar.media.exception.MediaException;
+import com.calendar.media.exception.BusinessErrorCode;
+import com.calendar.media.exception.BusinessException;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -73,7 +73,7 @@ public class MediaController {
                                     .switchIfEmpty(Mono.error(invalid()))
                                     .flatMap(bytes -> mediaService.store(client, key.value(), bytes, parsed)));
                 })
-                .onErrorMap(DataBufferLimitException.class, e -> new MediaException(MediaErrorCode.MEDIA_TOO_LARGE))
+                .onErrorMap(DataBufferLimitException.class, e -> new BusinessException(BusinessErrorCode.MEDIA_TOO_LARGE))
                 .map(mapper::toResponse);
     }
 
@@ -107,7 +107,7 @@ public class MediaController {
         }
     }
 
-    private static MediaException invalid() {
-        return new MediaException(MediaErrorCode.MEDIA_INVALID);
+    private static BusinessException invalid() {
+        return new BusinessException(BusinessErrorCode.MEDIA_INVALID);
     }
 }

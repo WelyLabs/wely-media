@@ -1,16 +1,16 @@
 package com.calendar.media.exception;
 
 /** A refusal with a stable code; carries no framework type, so the domain can raise it. */
-public class MediaException extends RuntimeException {
+public class BusinessException extends RuntimeException {
 
-    private final MediaErrorCode errorCode;
+    private final BusinessErrorCode errorCode;
 
-    public MediaException(MediaErrorCode errorCode) {
+    public BusinessException(BusinessErrorCode errorCode) {
         super(errorCode.getDetail());
         this.errorCode = errorCode;
     }
 
-    public MediaErrorCode getErrorCode() {
+    public BusinessErrorCode getErrorCode() {
         return errorCode;
     }
 }

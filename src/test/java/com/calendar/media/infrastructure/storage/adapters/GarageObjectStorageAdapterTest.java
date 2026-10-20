@@ -1,7 +1,9 @@
 package com.calendar.media.infrastructure.storage.adapters;
 
-import com.calendar.media.exception.MediaErrorCode;
-import com.calendar.media.exception.MediaException;
+import com.calendar.media.exception.BusinessErrorCode;
+import com.calendar.media.exception.BusinessException;
+import com.calendar.media.exception.TechnicalErrorCode;
+import com.calendar.media.exception.TechnicalException;
 import com.calendar.media.infrastructure.storage.signing.GarageRequestSigner;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -70,7 +72,8 @@ class GarageObjectStorageAdapterTest {
     }
 
     private static boolean unavailable(Throwable error) {
-        return error instanceof MediaException media && media.getErrorCode() == MediaErrorCode.STORAGE_UNAVAILABLE;
+        return error instanceof TechnicalException technical
+                && technical.getErrorCode() == TechnicalErrorCode.STORAGE_UNAVAILABLE;
     }
 
     @Test
@@ -127,12 +130,36 @@ class GarageObjectStorageAdapterTest {
     }
 
     @Test
-    void put_shouldLetAMediaExceptionThroughUnchanged() {
-        answer = Mono.error(new MediaException(MediaErrorCode.MEDIA_INVALID));
+    @DisplayName("the original Garage failure is kept as the cause, so the ERROR log shows it")
+    void put_shouldKeepTheOriginalFailureAsCause_whenGarageIsUnreachable() {
+        IOException refused = new IOException("Connection refused");
+        answer = Mono.error(refused);
 
         StepVerifier.create(storage.put("wely-chat-media", "chat/c1/m1.jpg", new byte[] {1}, "image/jpeg"))
-                .expectErrorMatches(error -> error instanceof MediaException media
-                        && media.getErrorCode() == MediaErrorCode.MEDIA_INVALID)
+                .expectErrorSatisfies(error -> {
+                    assertThat(unavailable(error)).isTrue();
+                    assertThat(error.getCause()).isSameAs(refused);
+                })
+                .verify();
+    }
+
+    @Test
+    void put_shouldLetABusinessExceptionThroughUnchanged() {
+        answer = Mono.error(new BusinessException(BusinessErrorCode.MEDIA_INVALID));
+
+        StepVerifier.create(storage.put("wely-chat-media", "chat/c1/m1.jpg", new byte[] {1}, "image/jpeg"))
+                .expectErrorMatches(error -> error instanceof BusinessException business
+                        && business.getErrorCode() == BusinessErrorCode.MEDIA_INVALID)
+                .verify();
+    }
+
+    @Test
+    void put_shouldLetATechnicalExceptionThroughUnchanged() {
+        TechnicalException failure = new TechnicalException(TechnicalErrorCode.STORAGE_UNAVAILABLE);
+        answer = Mono.error(failure);
+
+        StepVerifier.create(storage.put("wely-chat-media", "chat/c1/m1.jpg", new byte[] {1}, "image/jpeg"))
+                .expectErrorMatches(error -> error == failure)
                 .verify();
     }
 
