@@ -20,6 +20,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Arrays;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -88,7 +89,7 @@ class ImageIoImageNormalizerAdapterTest {
                     assertThat(right.getBlue()).isGreaterThan(200);
                     assertThat(right.getGreen()).isLessThan(60);
                 })
-                .verifyComplete();
+                .expectComplete().verify(Duration.ofSeconds(10));
     }
 
     @Test
@@ -100,14 +101,14 @@ class ImageIoImageNormalizerAdapterTest {
                     assertThat(photo.contentType()).isEqualTo("image/jpeg");
                     assertThat(decodedSize(photo)).isEqualTo("1600x1200");
                 })
-                .verifyComplete();
+                .expectComplete().verify(Duration.ofSeconds(10));
     }
 
     @Test
     void normalize_shouldBoundAPortraitPhotoByItsHeight() {
         StepVerifier.create(normalizer.normalize(image(900, 2400, "jpg"), MediaProfile.PHOTO))
                 .assertNext(photo -> assertThat(decodedSize(photo)).isEqualTo("600x1600"))
-                .verifyComplete();
+                .expectComplete().verify(Duration.ofSeconds(10));
     }
 
     @Test
@@ -115,17 +116,17 @@ class ImageIoImageNormalizerAdapterTest {
     void normalize_shouldBoundACoverByItsWidth() {
         StepVerifier.create(normalizer.normalize(image(3200, 1000, "png"), MediaProfile.COVER))
                 .assertNext(cover -> assertThat(decodedSize(cover)).isEqualTo("1600x500"))
-                .verifyComplete();
+                .expectComplete().verify(Duration.ofSeconds(10));
         StepVerifier.create(normalizer.normalize(image(1000, 2500, "png"), MediaProfile.COVER))
                 .assertNext(cover -> assertThat(decodedSize(cover)).isEqualTo("1000x2500"))
-                .verifyComplete();
+                .expectComplete().verify(Duration.ofSeconds(10));
     }
 
     @Test
     void normalize_shouldBoundAReceiptsLongestSideAt2000() {
         StepVerifier.create(normalizer.normalize(image(3000, 6000, "png"), MediaProfile.RECEIPT))
                 .assertNext(receipt -> assertThat(decodedSize(receipt)).isEqualTo("1000x2000"))
-                .verifyComplete();
+                .expectComplete().verify(Duration.ofSeconds(10));
     }
 
     @ParameterizedTest
@@ -133,7 +134,7 @@ class ImageIoImageNormalizerAdapterTest {
     void normalize_shouldNeverEnlargeASmallPicture(MediaProfile profile) {
         StepVerifier.create(normalizer.normalize(image(320, 240, "png"), profile))
                 .assertNext(small -> assertThat(decodedSize(small)).isEqualTo("320x240"))
-                .verifyComplete();
+                .expectComplete().verify(Duration.ofSeconds(10));
     }
 
     @ParameterizedTest
@@ -144,21 +145,21 @@ class ImageIoImageNormalizerAdapterTest {
                     assertThat(out.content()[0] & 0xFF).isEqualTo(0xFF);
                     assertThat(out.content()[1] & 0xFF).isEqualTo(0xD8);
                 })
-                .verifyComplete();
+                .expectComplete().verify(Duration.ofSeconds(10));
     }
 
     @Test
     void normalize_shouldRefuseWhatIsNotAnImage() {
         StepVerifier.create(normalizer.normalize("<script>alert(1)</script>".getBytes(StandardCharsets.UTF_8), MediaProfile.PHOTO))
                 .expectErrorMatches(ImageIoImageNormalizerAdapterTest::invalid)
-                .verify();
+                .verify(Duration.ofSeconds(10));
     }
 
     @Test
     void normalize_shouldRefuseAnEmptyUpload() {
         StepVerifier.create(normalizer.normalize(new byte[0], MediaProfile.AVATAR))
                 .expectErrorMatches(ImageIoImageNormalizerAdapterTest::invalid)
-                .verify();
+                .verify(Duration.ofSeconds(10));
     }
 
     @Test
@@ -167,7 +168,7 @@ class ImageIoImageNormalizerAdapterTest {
 
         StepVerifier.create(normalizer.normalize(Arrays.copyOf(png, png.length / 3), MediaProfile.PHOTO))
                 .expectErrorMatches(ImageIoImageNormalizerAdapterTest::invalid)
-                .verify();
+                .verify(Duration.ofSeconds(10));
     }
 
     @Test
@@ -175,11 +176,11 @@ class ImageIoImageNormalizerAdapterTest {
     void normalize_shouldRefuseAHugeImageFromItsHeader() {
         StepVerifier.create(normalizer.normalize(image(ImageIoImageNormalizerAdapter.MAX_SOURCE_SIDE + 1, 10, "png"), MediaProfile.PHOTO))
                 .expectErrorMatches(ImageIoImageNormalizerAdapterTest::invalid)
-                .verify();
+                .verify(Duration.ofSeconds(10));
         // 7000 x 7000 is under the side limit but 49 megapixels.
         StepVerifier.create(normalizer.normalize(image(7000, 7000, "png"), MediaProfile.RECEIPT))
                 .expectErrorMatches(ImageIoImageNormalizerAdapterTest::invalid)
-                .verify();
+                .verify(Duration.ofSeconds(10));
     }
 
     @Test
@@ -199,6 +200,6 @@ class ImageIoImageNormalizerAdapterTest {
         StepVerifier.create(normalizer.normalize(withExif.toByteArray(), MediaProfile.PHOTO))
                 .assertNext(photo -> assertThat(new String(photo.content(), StandardCharsets.ISO_8859_1))
                         .doesNotContain("GPS-LATITUDE"))
-                .verifyComplete();
+                .expectComplete().verify(Duration.ofSeconds(10));
     }
 }

@@ -52,6 +52,7 @@ class MediaControllerTest {
         return WebTestClient.bindToServer()
                 .baseUrl("http://localhost:" + port)
                 .defaultHeader(SECRET_HEADER, "chat-test-secret")
+                .responseTimeout(Duration.ofSeconds(30))
                 .build();
     }
 

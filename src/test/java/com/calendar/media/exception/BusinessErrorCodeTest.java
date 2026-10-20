@@ -34,8 +34,7 @@ class BusinessErrorCodeTest {
     @Test
     @DisplayName("no constant reuses a code the error handler writes on its own")
     void values_shouldNotReuseACode_writtenByTheErrorHandler() {
-        assertThat(codes()).doesNotContain(GlobalErrorHandler.VALIDATION_CODE, GlobalErrorHandler.REQUEST_CODE,
-                GlobalErrorHandler.UNEXPECTED_CODE);
+        assertThat(codes()).doesNotContainAnyElementsOf(GlobalErrorHandler.HANDLER_CODES);
     }
 
     @Test

@@ -139,7 +139,7 @@ Un `AuthenticationWebFilter` Spring Security lit `X-Internal-Secret` et le compa
 
 - En-tête absent ou inconnu → **401** `MED-REQ-001`.
 - Un client dont le secret configuré est vide est **désactivé** : aucun en-tête, vide compris, ne le sélectionne.
-- Seuls `/actuator/health/liveness`, `/actuator/health/readiness` et les chemins springdoc sont ouverts sans secret.
+- Seuls `/actuator/health/liveness`, `/actuator/health/readiness`, `GET /actuator/prometheus` (collecte de `wely_errors_technical_total`) et les chemins springdoc sont ouverts sans secret.
 
 ---
 
@@ -166,7 +166,8 @@ Toutes les réponses d'erreur sont des `ProblemDetail` (RFC 7807) :
   "detail": "The key is malformed or outside the prefix granted to this caller.",
   "instance": "/internal/media",
   "code": "MED-BUS-003",
-  "timestamp": "2026-10-13T09:12:44.118Z"
+  "timestamp": "2026-10-13T09:12:44.118Z",
+  "requestId": "6f1c2a9e-17"
 }
 ```
 

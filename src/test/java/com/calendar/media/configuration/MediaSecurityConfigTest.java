@@ -3,6 +3,8 @@ package com.calendar.media.configuration;
 import com.calendar.media.application.security.MediaClientAuthenticationManager;
 import com.calendar.media.domain.models.MediaClient;
 import com.calendar.media.domain.services.MediaService;
+import com.calendar.media.exception.TechnicalErrorCode;
+import com.calendar.media.exception.TechnicalException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +15,8 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import reactor.core.publisher.Mono;
+
+import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -38,7 +42,9 @@ class MediaSecurityConfigTest {
     private int port;
 
     private WebTestClient client() {
-        return WebTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
+        return WebTestClient.bindToServer().baseUrl("http://localhost:" + port)
+                .responseTimeout(Duration.ofSeconds(30))
+                .build();
     }
 
     private void expectClientUnknown(WebTestClient.ResponseSpec response) {
@@ -47,7 +53,8 @@ class MediaSecurityConfigTest {
                 .expectBody()
                 .jsonPath("$.code").isEqualTo("MED-REQ-001")
                 .jsonPath("$.status").isEqualTo(401)
-                .jsonPath("$.instance").isEqualTo("/internal/media");
+                .jsonPath("$.instance").isEqualTo("/internal/media")
+                .jsonPath("$.requestId").isNotEmpty();
     }
 
     @Test
@@ -101,6 +108,35 @@ class MediaSecurityConfigTest {
         client().get().uri("/actuator/health/readiness").exchange().expectStatus().isOk();
         client().get().uri("/actuator/info").exchange().expectStatus().isUnauthorized();
         client().get().uri("/actuator/health").exchange().expectStatus().isUnauthorized();
+    }
+
+    @Test
+    @DisplayName("the metrics scrape needs no secret and carries the technical error counter")
+    void internalHttpSecurity_shouldOpenThePrometheusScrape() {
+        when(mediaService.delete(any(), anyString()))
+                .thenReturn(Mono.error(new TechnicalException(TechnicalErrorCode.STORAGE_UNAVAILABLE)));
+        client().delete().uri(DELETE_URI).header("X-Internal-Secret", "users-test-secret")
+                .exchange()
+                .expectStatus().isEqualTo(502);
+
+        client().get().uri("/actuator/prometheus")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class)
+                .value(body -> assertThat(body)
+                        .contains("# TYPE wely_errors_technical_total counter")
+                        .contains("wely_errors_technical_total{code=\"MED-TEC-001\"}"));
+    }
+
+    @Test
+    @DisplayName("opening the scrape opens nothing else: other actuator paths stay closed or unexposed")
+    void internalHttpSecurity_shouldKeepTheRestOfTheActuatorClosed() {
+        client().get().uri("/actuator/env").exchange().expectStatus().isUnauthorized();
+        client().post().uri("/actuator/prometheus").exchange().expectStatus().isUnauthorized();
+        // Even with a valid secret, the endpoint is not exposed at all.
+        client().get().uri("/actuator/env").header("X-Internal-Secret", "users-test-secret")
+                .exchange()
+                .expectStatus().isNotFound();
     }
 
     @Test

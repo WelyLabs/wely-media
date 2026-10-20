@@ -67,7 +67,7 @@ class MediaServiceTest {
 
         StepVerifier.create(service.store(CHAT, "chat/c1/m1.jpg", UPLOAD, MediaProfile.PHOTO))
                 .expectNext(new StoredMedia("chat/c1/m1.jpg", 1600, 1200, "image/jpeg"))
-                .verifyComplete();
+                .expectComplete().verify(Duration.ofSeconds(10));
     }
 
     @Test
@@ -75,7 +75,7 @@ class MediaServiceTest {
     void store_shouldRefuseAForeignKey_withoutDecoding() {
         StepVerifier.create(service.store(CHAT, "avatars/u1/a.jpg", UPLOAD, MediaProfile.AVATAR))
                 .expectErrorMatches(error -> failsWith(error, BusinessErrorCode.MEDIA_KEY_FORBIDDEN))
-                .verify();
+                .verify(Duration.ofSeconds(10));
 
         verifyNoInteractions(normalizer, storage);
     }
@@ -94,7 +94,7 @@ class MediaServiceTest {
 
         StepVerifier.create(service.store(CHAT, "chat/c1/m1.jpg", UPLOAD, MediaProfile.PHOTO))
                 .expectErrorMatches(error -> failsWith(error, BusinessErrorCode.MEDIA_INVALID))
-                .verify();
+                .verify(Duration.ofSeconds(10));
 
         verify(storage, never()).put(anyString(), anyString(), any(), anyString());
     }
@@ -108,14 +108,14 @@ class MediaServiceTest {
 
         StepVerifier.create(service.store(CHAT, "chat/c1/m1.jpg", UPLOAD, MediaProfile.PHOTO))
                 .expectErrorMatches(error -> failsWith(error, TechnicalErrorCode.STORAGE_UNAVAILABLE))
-                .verify();
+                .verify(Duration.ofSeconds(10));
     }
 
     @Test
     void delete_shouldRemoveFromTheClientsBucket() {
         when(storage.delete("wely-chat-media", "chat/c1/m1.jpg")).thenReturn(Mono.empty());
 
-        StepVerifier.create(service.delete(CHAT, "chat/c1/m1.jpg")).verifyComplete();
+        StepVerifier.create(service.delete(CHAT, "chat/c1/m1.jpg")).expectComplete().verify(Duration.ofSeconds(10));
 
         verify(storage).delete("wely-chat-media", "chat/c1/m1.jpg");
     }
@@ -124,7 +124,7 @@ class MediaServiceTest {
     void delete_shouldRefuseAForeignKey() {
         StepVerifier.create(service.delete(CHAT, "events/e1/cover.jpg"))
                 .expectErrorMatches(error -> failsWith(error, BusinessErrorCode.MEDIA_KEY_FORBIDDEN))
-                .verify();
+                .verify(Duration.ofSeconds(10));
 
         verifyNoInteractions(storage);
     }
@@ -136,7 +136,7 @@ class MediaServiceTest {
                 .thenReturn(Flux.just("avatars/u1/a.jpg", "avatars/u1/b.jpg", "avatars/u1/old/c.jpg"));
         when(storage.delete(eq("wely-avatars"), anyString())).thenReturn(Mono.empty());
 
-        StepVerifier.create(service.deletePrefix(USERS, "avatars/u1/")).expectNext(3L).verifyComplete();
+        StepVerifier.create(service.deletePrefix(USERS, "avatars/u1/")).expectNext(3L).expectComplete().verify(Duration.ofSeconds(10));
 
         verify(storage).delete("wely-avatars", "avatars/u1/a.jpg");
         verify(storage).delete("wely-avatars", "avatars/u1/b.jpg");
@@ -148,7 +148,7 @@ class MediaServiceTest {
     void deletePrefix_shouldCountNothing_whenNothingIsUnderThePrefix() {
         when(storage.list("wely-avatars", "avatars/u1/")).thenReturn(Flux.empty());
 
-        StepVerifier.create(service.deletePrefix(USERS, "avatars/u1/")).expectNext(0L).verifyComplete();
+        StepVerifier.create(service.deletePrefix(USERS, "avatars/u1/")).expectNext(0L).expectComplete().verify(Duration.ofSeconds(10));
 
         verify(storage, never()).delete(anyString(), anyString());
     }
@@ -158,10 +158,10 @@ class MediaServiceTest {
     void deletePrefix_shouldRefuseAForeignPrefix_withoutListing() {
         StepVerifier.create(service.deletePrefix(USERS, "chat/c1/"))
                 .expectErrorMatches(error -> failsWith(error, BusinessErrorCode.MEDIA_KEY_FORBIDDEN))
-                .verify();
+                .verify(Duration.ofSeconds(10));
         StepVerifier.create(service.deletePrefix(USERS, "avatars/"))
                 .expectErrorMatches(error -> failsWith(error, BusinessErrorCode.MEDIA_KEY_FORBIDDEN))
-                .verify();
+                .verify(Duration.ofSeconds(10));
 
         verifyNoInteractions(storage);
     }
@@ -173,7 +173,7 @@ class MediaServiceTest {
                 .thenReturn(Flux.just("avatars/u1/a.jpg", "avatars/u10/a.jpg", "chat/c1/m1.jpg"));
         when(storage.delete("wely-avatars", "avatars/u1/a.jpg")).thenReturn(Mono.empty());
 
-        StepVerifier.create(service.deletePrefix(USERS, "avatars/u1/")).expectNext(1L).verifyComplete();
+        StepVerifier.create(service.deletePrefix(USERS, "avatars/u1/")).expectNext(1L).expectComplete().verify(Duration.ofSeconds(10));
 
         verify(storage, never()).delete("wely-avatars", "avatars/u10/a.jpg");
         verify(storage, never()).delete("wely-avatars", "chat/c1/m1.jpg");
@@ -186,7 +186,7 @@ class MediaServiceTest {
 
         StepVerifier.create(service.deletePrefix(USERS, "avatars/u1/"))
                 .expectErrorMatches(error -> failsWith(error, TechnicalErrorCode.STORAGE_UNAVAILABLE))
-                .verify();
+                .verify(Duration.ofSeconds(10));
 
         verify(storage, never()).delete(anyString(), anyString());
     }
@@ -199,7 +199,7 @@ class MediaServiceTest {
 
         StepVerifier.create(service.deletePrefix(USERS, "avatars/u1/"))
                 .expectErrorMatches(error -> failsWith(error, TechnicalErrorCode.STORAGE_UNAVAILABLE))
-                .verify();
+                .verify(Duration.ofSeconds(10));
     }
 
     @Test
@@ -219,7 +219,7 @@ class MediaServiceTest {
                 .assertNext(urls -> assertThat(urls).containsExactly(
                         org.assertj.core.api.Assertions.entry("chat/b.jpg", "https://media/chat/b.jpg"),
                         org.assertj.core.api.Assertions.entry("chat/a.jpg", "https://media/chat/a.jpg")))
-                .verifyComplete();
+                .expectComplete().verify(Duration.ofSeconds(10));
 
         verify(storage).presignGet("wely-chat-media", "chat/b.jpg", Duration.ofMinutes(10));
     }
@@ -229,7 +229,7 @@ class MediaServiceTest {
     void urls_shouldRefuseTheBatch_whenOneKeyIsForeign() {
         StepVerifier.create(service.urls(CHAT, List.of("chat/a.jpg", "avatars/u1/a.jpg"), Duration.ofHours(1)))
                 .expectErrorMatches(error -> failsWith(error, BusinessErrorCode.MEDIA_KEY_FORBIDDEN))
-                .verify();
+                .verify(Duration.ofSeconds(10));
 
         verifyNoInteractions(storage);
     }
@@ -240,7 +240,7 @@ class MediaServiceTest {
 
         StepVerifier.create(service.urls(CHAT, keys, Duration.ofHours(1)))
                 .expectErrorMatches(error -> failsWith(error, BusinessErrorCode.MEDIA_INVALID))
-                .verify();
+                .verify(Duration.ofSeconds(10));
     }
 
     @Test
@@ -251,21 +251,21 @@ class MediaServiceTest {
 
         StepVerifier.create(service.urls(CHAT, keys, Duration.ofHours(1)))
                 .assertNext(urls -> assertThat(urls).hasSize(2))
-                .verifyComplete();
+                .expectComplete().verify(Duration.ofSeconds(10));
     }
 
     @Test
     void urls_shouldAnswerEmpty_whenNoKeyIsAsked() {
         StepVerifier.create(service.urls(CHAT, List.of(), Duration.ofHours(1)))
                 .assertNext(urls -> assertThat(urls).isEmpty())
-                .verifyComplete();
+                .expectComplete().verify(Duration.ofSeconds(10));
     }
 
     @Test
     void urls_shouldClampTheTtl() {
         when(storage.presignGet(anyString(), anyString(), any())).thenReturn("u");
 
-        StepVerifier.create(service.urls(CHAT, List.of("chat/a.jpg"), Duration.ofDays(7))).expectNextCount(1).verifyComplete();
+        StepVerifier.create(service.urls(CHAT, List.of("chat/a.jpg"), Duration.ofDays(7))).expectNextCount(1).expectComplete().verify(Duration.ofSeconds(10));
 
         verify(storage).presignGet("wely-chat-media", "chat/a.jpg", MediaService.MAX_TTL);
     }

@@ -41,7 +41,7 @@ class ProblemDetailsTest {
         assertThat(problem.getInstance()).isEqualTo(URI.create("/internal/media"));
         assertThat(problem.getProperties())
                 .containsEntry("code", "MED-REQ-001")
-                .containsEntry(ProblemDetails.REQUEST_ID, exchange.getRequest().getId());
+                .containsEntry(ProblemDetails.REQUEST_ID_PROPERTY, exchange.getRequest().getId());
     }
 
     @Test
@@ -52,7 +52,7 @@ class ProblemDetailsTest {
 
         assertThat(problem.getStatus()).isEqualTo(502);
         assertThat(problem.getInstance()).isEqualTo(URI.create("/x"));
-        assertThat((String) problem.getProperties().get(ProblemDetails.REQUEST_ID)).isNotBlank()
+        assertThat((String) problem.getProperties().get(ProblemDetails.REQUEST_ID_PROPERTY)).isNotBlank()
                 .isEqualTo(exchange.getRequest().getId());
     }
 
@@ -60,6 +60,6 @@ class ProblemDetailsTest {
     void of_shouldNotAddARequestId_whenBuiltFromAPath() {
         ProblemDetail problem = ProblemDetails.of(HttpStatus.BAD_GATEWAY, "MED-TEC-001", "t", "d", "/x");
 
-        assertThat(problem.getProperties()).doesNotContainKey(ProblemDetails.REQUEST_ID);
+        assertThat(problem.getProperties()).doesNotContainKey(ProblemDetails.REQUEST_ID_PROPERTY);
     }
 }

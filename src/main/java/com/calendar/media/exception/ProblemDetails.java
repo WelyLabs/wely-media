@@ -14,7 +14,7 @@ public final class ProblemDetails {
     static final String PROBLEM_TYPE_BASE = "https://welylabs.app/problems/";
 
     /** The WebFlux request id, the same one that prefixes the framework's log lines. */
-    public static final String REQUEST_ID = "requestId";
+    public static final String REQUEST_ID_PROPERTY = "requestId";
 
     private ProblemDetails() {
     }
@@ -45,7 +45,7 @@ public final class ProblemDetails {
     }
 
     private static ProblemDetail withRequestId(ProblemDetail problem, ServerWebExchange exchange) {
-        problem.setProperty(REQUEST_ID, exchange.getRequest().getId());
+        problem.setProperty(REQUEST_ID_PROPERTY, exchange.getRequest().getId());
         return problem;
     }
 

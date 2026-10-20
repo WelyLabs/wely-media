@@ -7,6 +7,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import reactor.test.StepVerifier;
 
+import java.time.Duration;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,14 +31,14 @@ class MediaClientAuthenticationManagerTest {
                     assertThat(authentication.getPrincipal()).isEqualTo(CHAT);
                     assertThat(authentication.getCredentials()).isNull();
                 })
-                .verifyComplete();
+                .expectComplete().verify(Duration.ofSeconds(10));
     }
 
     @Test
     void authenticate_shouldRefuseAnUnknownSecret() {
         StepVerifier.create(manager.authenticate(UsernamePasswordAuthenticationToken.unauthenticated(null, "guess")))
                 .expectError(BadCredentialsException.class)
-                .verify();
+                .verify(Duration.ofSeconds(10));
     }
 
     @Test

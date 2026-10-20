@@ -68,6 +68,11 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
 		</dependency>
+		<!-- /actuator/prometheus, so wely_errors_technical_total can be scraped. Version from the Boot BOM. -->
+		<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-registry-prometheus</artifactId>
+		</dependency>
 		<!-- Plain Spring Security: callers authenticate with a shared secret, not a JWT. -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

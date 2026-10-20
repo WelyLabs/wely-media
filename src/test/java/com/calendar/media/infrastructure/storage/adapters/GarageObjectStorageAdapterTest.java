@@ -16,9 +16,13 @@ import org.springframework.web.reactive.function.client.ClientRequest;
 import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
+import reactor.netty.DisposableServer;
+import reactor.netty.http.server.HttpServer;
 import reactor.test.StepVerifier;
 
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.net.URI;
 import java.time.Clock;
 import java.time.Duration;
@@ -92,7 +96,7 @@ class GarageObjectStorageAdapterTest {
 
     @Test
     void put_shouldWriteTheObjectInternally_withItsTypeAndAPrivateCacheControl() {
-        StepVerifier.create(storage.put("wely-chat-media", "chat/c1/m1.jpg", new byte[] {1}, "image/jpeg")).verifyComplete();
+        StepVerifier.create(storage.put("wely-chat-media", "chat/c1/m1.jpg", new byte[] {1}, "image/jpeg")).expectComplete().verify(Duration.ofSeconds(10));
 
         ClientRequest request = sent.getFirst();
         assertThat(request.method()).isEqualTo(HttpMethod.PUT);
@@ -117,7 +121,7 @@ class GarageObjectStorageAdapterTest {
 
         StepVerifier.create(storage.put("wely-chat-media", "chat/c1/m1.jpg", new byte[] {1}, "image/jpeg"))
                 .expectErrorMatches(GarageObjectStorageAdapterTest::unavailable)
-                .verify();
+                .verify(Duration.ofSeconds(10));
     }
 
     @Test
@@ -126,7 +130,7 @@ class GarageObjectStorageAdapterTest {
 
         StepVerifier.create(storage.put("wely-chat-media", "chat/c1/m1.jpg", new byte[] {1}, "image/jpeg"))
                 .expectErrorMatches(GarageObjectStorageAdapterTest::unavailable)
-                .verify();
+                .verify(Duration.ofSeconds(10));
     }
 
     @Test
@@ -140,7 +144,7 @@ class GarageObjectStorageAdapterTest {
                     assertThat(unavailable(error)).isTrue();
                     assertThat(error.getCause()).isSameAs(refused);
                 })
-                .verify();
+                .verify(Duration.ofSeconds(10));
     }
 
     @Test
@@ -150,7 +154,7 @@ class GarageObjectStorageAdapterTest {
         StepVerifier.create(storage.put("wely-chat-media", "chat/c1/m1.jpg", new byte[] {1}, "image/jpeg"))
                 .expectErrorMatches(error -> error instanceof BusinessException business
                         && business.getErrorCode() == BusinessErrorCode.MEDIA_INVALID)
-                .verify();
+                .verify(Duration.ofSeconds(10));
     }
 
     @Test
@@ -160,14 +164,14 @@ class GarageObjectStorageAdapterTest {
 
         StepVerifier.create(storage.put("wely-chat-media", "chat/c1/m1.jpg", new byte[] {1}, "image/jpeg"))
                 .expectErrorMatches(error -> error == failure)
-                .verify();
+                .verify(Duration.ofSeconds(10));
     }
 
     @Test
     void delete_shouldRemoveTheObjectInternally() {
         answer = Mono.just(ClientResponse.create(HttpStatus.NO_CONTENT).build());
 
-        StepVerifier.create(storage.delete("wely-avatars", "avatars/u1/a.jpg")).verifyComplete();
+        StepVerifier.create(storage.delete("wely-avatars", "avatars/u1/a.jpg")).expectComplete().verify(Duration.ofSeconds(10));
 
         ClientRequest request = sent.getFirst();
         assertThat(request.method()).isEqualTo(HttpMethod.DELETE);
@@ -181,7 +185,7 @@ class GarageObjectStorageAdapterTest {
 
         StepVerifier.create(storage.delete("wely-avatars", "avatars/u1/a.jpg"))
                 .expectErrorMatches(GarageObjectStorageAdapterTest::unavailable)
-                .verify();
+                .verify(Duration.ofSeconds(10));
     }
 
     @Test
@@ -189,7 +193,7 @@ class GarageObjectStorageAdapterTest {
     void list_shouldSignAListObjectsV2RequestToTheInternalHost() {
         pages.add(listing(null, "avatars/u1/a.jpg"));
 
-        StepVerifier.create(storage.list("wely-avatars", "avatars/u1/")).expectNext("avatars/u1/a.jpg").verifyComplete();
+        StepVerifier.create(storage.list("wely-avatars", "avatars/u1/")).expectNext("avatars/u1/a.jpg").expectComplete().verify(Duration.ofSeconds(10));
 
         ClientRequest request = sent.getFirst();
         assertThat(request.method()).isEqualTo(HttpMethod.GET);
@@ -213,7 +217,7 @@ class GarageObjectStorageAdapterTest {
 
         StepVerifier.create(storage.list("wely-avatars", "avatars/u1/"))
                 .expectNext("avatars/u1/a.jpg", "avatars/u1/b.jpg", "avatars/u1/c.jpg", "avatars/u1/d.jpg")
-                .verifyComplete();
+                .expectComplete().verify(Duration.ofSeconds(10));
 
         assertThat(sent).hasSize(3);
         assertThat(sent.get(1).url().getQuery()).contains("continuation-token=t1").contains("prefix=avatars/u1/");
@@ -225,7 +229,7 @@ class GarageObjectStorageAdapterTest {
     void list_shouldBeEmpty_whenNothingMatches() {
         pages.add(listing(null));
 
-        StepVerifier.create(storage.list("wely-avatars", "avatars/u1/")).verifyComplete();
+        StepVerifier.create(storage.list("wely-avatars", "avatars/u1/")).expectComplete().verify(Duration.ofSeconds(10));
 
         assertThat(sent).hasSize(1);
     }
@@ -239,7 +243,7 @@ class GarageObjectStorageAdapterTest {
         StepVerifier.create(storage.list("wely-avatars", "avatars/u1/"))
                 .expectNext("avatars/u1/a.jpg")
                 .expectErrorMatches(GarageObjectStorageAdapterTest::unavailable)
-                .verify();
+                .verify(Duration.ofSeconds(10));
 
         assertThat(sent).hasSize(2);
     }
@@ -257,7 +261,7 @@ class GarageObjectStorageAdapterTest {
 
         StepVerifier.create(storage.list("wely-avatars", "avatars/u1/"))
                 .expectErrorMatches(GarageObjectStorageAdapterTest::unavailable)
-                .verify();
+                .verify(Duration.ofSeconds(10));
     }
 
     @Test
@@ -266,7 +270,7 @@ class GarageObjectStorageAdapterTest {
 
         StepVerifier.create(storage.list("wely-avatars", "avatars/u1/"))
                 .expectErrorMatches(GarageObjectStorageAdapterTest::unavailable)
-                .verify();
+                .verify(Duration.ofSeconds(10));
     }
 
     @Test
@@ -276,11 +280,11 @@ class GarageObjectStorageAdapterTest {
 
         StepVerifier.create(storage.list("wely-avatars", "avatars/u1/"))
                 .expectErrorMatches(GarageObjectStorageAdapterTest::unavailable)
-                .verify();
+                .verify(Duration.ofSeconds(10));
 
         StepVerifier.create(storage.list("wely-avatars", "avatars/u1/"))
                 .expectErrorMatches(GarageObjectStorageAdapterTest::unavailable)
-                .verify();
+                .verify(Duration.ofSeconds(10));
     }
 
     @Test
@@ -294,7 +298,7 @@ class GarageObjectStorageAdapterTest {
 
         StepVerifier.create(storage.list("wely-avatars", "avatars/u1/"))
                 .expectErrorMatches(GarageObjectStorageAdapterTest::unavailable)
-                .verify();
+                .verify(Duration.ofSeconds(10));
     }
 
     @Test
@@ -306,6 +310,60 @@ class GarageObjectStorageAdapterTest {
         StepVerifier.create(storage.list("wely-avatars", "avatars/u1/"))
                 .expectNext("avatars/u1/a.jpg")
                 .expectErrorMatches(GarageObjectStorageAdapterTest::unavailable)
-                .verify();
+                .verify(Duration.ofSeconds(10));
+    }
+
+    // --- Secrets in the logged failure ------------------------------------------------------------
+    // The handler logs the whole cause chain at ERROR. These run the real HTTP client, so the chain is
+    // exactly what production would log, and guard that neither key nor signature ever reaches it:
+    // WebClient formats the request URI without its query, where the presigned credentials live.
+
+    private static final String ACCESS_KEY = "GKs3cr3tACCESSKEY0000000000";
+    private static final String SECRET_KEY = "s3cr3tSECRETKEY";
+
+    private static GarageObjectStorageAdapter realClientTowards(URI endpoint) {
+        GarageRequestSigner signer = new GarageRequestSigner(ACCESS_KEY, SECRET_KEY, "garage", Clock.systemUTC());
+        return new GarageObjectStorageAdapter(WebClient.builder().build(), signer, endpoint, endpoint, PAGE_SIZE);
+    }
+
+    private static String wholeChain(Throwable error) {
+        StringWriter trace = new StringWriter();
+        error.printStackTrace(new PrintWriter(trace));
+        return trace.toString();
+    }
+
+    private static void assertNoCredentials(Throwable error) {
+        assertThat(unavailable(error)).isTrue();
+        assertThat(wholeChain(error))
+                .contains("/wely-chat-media/chat/c1/m1.jpg")
+                .doesNotContain(SECRET_KEY, ACCESS_KEY, "X-Amz-Signature", "X-Amz-Credential");
+    }
+
+    @Test
+    @DisplayName("an unreachable Garage leaves no key or signature in the logged cause chain")
+    void put_shouldKeepCredentialsOutOfTheFailure_whenGarageIsUnreachable() {
+        // Port 1 on loopback: refused at once, no timeout to wait for.
+        GarageObjectStorageAdapter unreachable = realClientTowards(URI.create("http://127.0.0.1:1"));
+
+        StepVerifier.create(unreachable.put("wely-chat-media", "chat/c1/m1.jpg", new byte[] {1}, "image/jpeg"))
+                .expectErrorSatisfies(GarageObjectStorageAdapterTest::assertNoCredentials)
+                .verify(Duration.ofSeconds(10));
+    }
+
+    @Test
+    @DisplayName("an error answer from Garage leaves no key or signature in the logged cause chain")
+    void put_shouldKeepCredentialsOutOfTheFailure_whenGarageAnswersAnError() {
+        DisposableServer garage = HttpServer.create().host("127.0.0.1").port(0)
+                .handle((request, response) -> response.status(403).sendString(Mono.just("<Error>AccessDenied</Error>")))
+                .bindNow();
+        try {
+            GarageObjectStorageAdapter refusing = realClientTowards(URI.create("http://127.0.0.1:" + garage.port()));
+
+            StepVerifier.create(refusing.put("wely-chat-media", "chat/c1/m1.jpg", new byte[] {1}, "image/jpeg"))
+                    .expectErrorSatisfies(GarageObjectStorageAdapterTest::assertNoCredentials)
+                    .verify(Duration.ofSeconds(10));
+        } finally {
+            garage.disposeNow();
+        }
     }
 }

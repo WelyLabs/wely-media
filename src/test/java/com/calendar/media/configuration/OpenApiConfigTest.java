@@ -100,7 +100,7 @@ class OpenApiConfigTest {
         assertThat(code.getEnum()).map(String::valueOf).contains(
                 BusinessErrorCode.MEDIA_KEY_FORBIDDEN.getCode(),
                 TechnicalErrorCode.STORAGE_UNAVAILABLE.getCode(),
-                GlobalErrorHandler.UNEXPECTED_CODE);
+                GlobalErrorHandler.UNEXPECTED_FAILURE_CODE);
     }
 
     @Test
@@ -127,8 +127,9 @@ class OpenApiConfigTest {
     @Test
     void allErrorCodes_shouldListEveryEnumCodeAndTheHandlerCodes() {
         assertThat(OpenApiConfig.allErrorCodes())
-                .hasSize(BusinessErrorCode.values().length + TechnicalErrorCode.values().length + 3)
-                .contains(GlobalErrorHandler.VALIDATION_CODE, GlobalErrorHandler.REQUEST_CODE)
+                .hasSize(BusinessErrorCode.values().length + TechnicalErrorCode.values().length
+                        + GlobalErrorHandler.HANDLER_CODES.size())
+                .containsAll(GlobalErrorHandler.HANDLER_CODES)
                 .doesNotHaveDuplicates();
     }
 

@@ -5,6 +5,8 @@ import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.web.server.MockServerWebExchange;
 import reactor.test.StepVerifier;
 
+import java.time.Duration;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 class InternalSecretAuthenticationConverterTest {
@@ -21,13 +23,13 @@ class InternalSecretAuthenticationConverterTest {
                     assertThat(authentication.isAuthenticated()).isFalse();
                     assertThat(authentication.getCredentials()).isEqualTo("s3cret");
                 })
-                .verifyComplete();
+                .expectComplete().verify(Duration.ofSeconds(10));
     }
 
     @Test
     void convert_shouldAttemptNothing_whenTheHeaderIsMissing() {
         StepVerifier.create(converter.convert(MockServerWebExchange.from(MockServerHttpRequest.get("/internal/media"))))
-                .verifyComplete();
+                .expectComplete().verify(Duration.ofSeconds(10));
     }
 
     @Test
@@ -35,6 +37,6 @@ class InternalSecretAuthenticationConverterTest {
         MockServerWebExchange exchange = MockServerWebExchange.from(
                 MockServerHttpRequest.get("/internal/media").header("X-Internal-Secret", " "));
 
-        StepVerifier.create(converter.convert(exchange)).verifyComplete();
+        StepVerifier.create(converter.convert(exchange)).expectComplete().verify(Duration.ofSeconds(10));
     }
 }

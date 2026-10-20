@@ -69,8 +69,7 @@ public class OpenApiConfig {
         return Stream.of(
                         Arrays.stream(BusinessErrorCode.values()).map(BusinessErrorCode::getCode),
                         Arrays.stream(TechnicalErrorCode.values()).map(TechnicalErrorCode::getCode),
-                        Stream.of(GlobalErrorHandler.VALIDATION_CODE, GlobalErrorHandler.REQUEST_CODE,
-                                GlobalErrorHandler.UNEXPECTED_CODE))
+                        GlobalErrorHandler.HANDLER_CODES.stream())
                 .flatMap(codes -> codes)
                 .sorted()
                 .toList();
@@ -94,7 +93,7 @@ public class OpenApiConfig {
                         .description("Request id, also printed on the server's log lines for this request."))
                 .addProperty("errors", new MapSchema()
                         .additionalProperties(new StringSchema())
-                        .description("Offending fields and their message; only for " + GlobalErrorHandler.VALIDATION_CODE + "."));
+                        .description("Offending fields and their message; only for " + GlobalErrorHandler.VALIDATION_FAILED_CODE + "."));
     }
 
     private static void addProblemResponses(Operation operation) {
