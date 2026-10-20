@@ -3,6 +3,7 @@ package com.calendar.media.application.security;
 import com.calendar.media.exception.BusinessErrorCode;
 import com.calendar.media.exception.ProblemDetailWriter;
 import com.calendar.media.exception.ProblemDetails;
+import com.calendar.media.exception.RequestIds;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.AuthenticationException;
@@ -32,7 +33,7 @@ public class ProblemDetailAuthenticationEntryPoint implements ServerAuthenticati
             BusinessErrorCode error = BusinessErrorCode.CLIENT_UNKNOWN;
             // Expected outcome, not an incident: WARN, without a stack trace.
             log.warn("Refused {} on {} (request {})", error.getCode(), exchange.getRequest().getPath().value(),
-                    exchange.getRequest().getId());
+                    RequestIds.of(exchange));
             return writer.write(exchange, ProblemDetails.of(error, exchange));
         });
     }

@@ -287,6 +287,17 @@ class GlobalErrorHandlerTest {
         }
 
         @Test
+        @DisplayName("the gateway's X-Request-Id is the problem's requestId, and is answered back")
+        void handleResponseStatusException_shouldUseThePropagatedRequestId() {
+            server().get().uri("/internal/unknown").header(RequestIds.REQUEST_ID_HEADER, "abcd1234-gateway-id")
+                    .exchange()
+                    .expectStatus().isNotFound()
+                    .expectHeader().valueEquals(RequestIds.REQUEST_ID_HEADER, "abcd1234-gateway-id")
+                    .expectBody()
+                    .jsonPath("$.requestId").isEqualTo("abcd1234-gateway-id");
+        }
+
+        @Test
         void handleValidationException_shouldAnswer400_whenAFieldIsInvalid() {
             expectProblem(server().post().uri("/internal/media/urls")
                     .contentType(MediaType.APPLICATION_JSON).bodyValue("{\"keys\":null}").exchange(),

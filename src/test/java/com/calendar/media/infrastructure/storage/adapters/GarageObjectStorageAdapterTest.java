@@ -2,6 +2,7 @@ package com.calendar.media.infrastructure.storage.adapters;
 
 import com.calendar.media.exception.BusinessErrorCode;
 import com.calendar.media.exception.BusinessException;
+import com.calendar.media.exception.RequestIds;
 import com.calendar.media.exception.TechnicalErrorCode;
 import com.calendar.media.exception.TechnicalException;
 import com.calendar.media.infrastructure.storage.signing.GarageRequestSigner;
@@ -19,6 +20,7 @@ import reactor.core.publisher.Mono;
 import reactor.netty.DisposableServer;
 import reactor.netty.http.server.HttpServer;
 import reactor.test.StepVerifier;
+import reactor.util.context.Context;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -145,6 +147,18 @@ class GarageObjectStorageAdapterTest {
                     assertThat(error.getCause()).isSameAs(refused);
                 })
                 .verify(Duration.ofSeconds(10));
+    }
+
+    @Test
+    @DisplayName("Garage is external: the request id in the Reactor Context is never sent to it")
+    void put_shouldNotSendTheRequestId_toGarage() {
+        StepVerifier.create(storage.put("wely-chat-media", "chat/c1/m1.jpg", new byte[] {1}, "image/jpeg")
+                        .contextWrite(Context.of(RequestIds.REQUEST_ID_ATTRIBUTE, "abcd1234-gateway-id")))
+                .expectComplete()
+                .verify(Duration.ofSeconds(10));
+
+        assertThat(sent).hasSize(1);
+        assertThat(sent.getFirst().headers().containsHeader(RequestIds.REQUEST_ID_HEADER)).isFalse();
     }
 
     @Test

@@ -57,6 +57,16 @@ class ProblemDetailsTest {
     }
 
     @Test
+    void of_shouldUseThePropagatedRequestId_whenTheFilterKeptOne() {
+        MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/x"));
+        exchange.getAttributes().put(RequestIds.REQUEST_ID_ATTRIBUTE, "abcd1234-gateway-id");
+
+        ProblemDetail problem = ProblemDetails.of(BusinessErrorCode.CLIENT_UNKNOWN, exchange);
+
+        assertThat(problem.getProperties()).containsEntry(ProblemDetails.REQUEST_ID_PROPERTY, "abcd1234-gateway-id");
+    }
+
+    @Test
     void of_shouldNotAddARequestId_whenBuiltFromAPath() {
         ProblemDetail problem = ProblemDetails.of(HttpStatus.BAD_GATEWAY, "MED-TEC-001", "t", "d", "/x");
 

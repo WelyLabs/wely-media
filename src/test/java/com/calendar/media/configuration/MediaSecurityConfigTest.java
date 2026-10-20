@@ -3,6 +3,7 @@ package com.calendar.media.configuration;
 import com.calendar.media.application.security.MediaClientAuthenticationManager;
 import com.calendar.media.domain.models.MediaClient;
 import com.calendar.media.domain.services.MediaService;
+import com.calendar.media.exception.RequestIds;
 import com.calendar.media.exception.TechnicalErrorCode;
 import com.calendar.media.exception.TechnicalException;
 import org.junit.jupiter.api.DisplayName;
@@ -76,6 +77,17 @@ class MediaSecurityConfigTest {
                 .jsonPath("$.instance").isEqualTo("/internal/media/prefix");
 
         verify(mediaService, never()).deletePrefix(any(), anyString());
+    }
+
+    @Test
+    @DisplayName("a 401 written by the security chain carries the gateway's request id")
+    void internalHttpSecurity_shouldAnswerThePropagatedRequestId_whenRefusing() {
+        client().delete().uri(DELETE_URI).header(RequestIds.REQUEST_ID_HEADER, "abcd1234-gateway-id")
+                .exchange()
+                .expectStatus().isUnauthorized()
+                .expectHeader().valueEquals(RequestIds.REQUEST_ID_HEADER, "abcd1234-gateway-id")
+                .expectBody()
+                .jsonPath("$.requestId").isEqualTo("abcd1234-gateway-id");
     }
 
     @Test

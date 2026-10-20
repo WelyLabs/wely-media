@@ -133,6 +133,6 @@ public class GlobalErrorHandler {
     }
 
     private static String requestId(ServerWebExchange exchange) {
-        return exchange.getRequest().getId();
+        return RequestIds.of(exchange);
     }
 }

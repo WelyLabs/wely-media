@@ -13,7 +13,7 @@ public final class ProblemDetails {
     /** Namespace for the {@code type} URI. Not dereferenced; it identifies, it does not serve. */
     static final String PROBLEM_TYPE_BASE = "https://welylabs.app/problems/";
 
-    /** The WebFlux request id, the same one that prefixes the framework's log lines. */
+    /** The id from {@link RequestIds#of}: the gateway's when propagated, also printed on our log lines. */
     public static final String REQUEST_ID_PROPERTY = "requestId";
 
     private ProblemDetails() {
@@ -45,7 +45,7 @@ public final class ProblemDetails {
     }
 
     private static ProblemDetail withRequestId(ProblemDetail problem, ServerWebExchange exchange) {
-        problem.setProperty(REQUEST_ID_PROPERTY, exchange.getRequest().getId());
+        problem.setProperty(REQUEST_ID_PROPERTY, RequestIds.of(exchange));
         return problem;
     }
 
