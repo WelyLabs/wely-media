@@ -5,6 +5,7 @@ import com.calendar.media.domain.models.MediaProfile;
 import com.calendar.media.domain.models.NormalizedImage;
 import com.calendar.media.domain.models.StoredMedia;
 import com.calendar.media.domain.ports.ImageNormalizer;
+import com.calendar.media.domain.ports.MediaActivity;
 import com.calendar.media.domain.ports.ObjectStorage;
 import com.calendar.media.exception.BusinessErrorCode;
 import com.calendar.media.exception.BusinessException;
@@ -21,6 +22,7 @@ import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.IntStream;
 
@@ -44,10 +46,23 @@ class MediaServiceTest {
     @Mock private ImageNormalizer normalizer;
 
     private MediaService service;
+    private RecordingActivity activity;
 
     @BeforeEach
     void setUp() {
-        service = new MediaService(storage, normalizer);
+        activity = new RecordingActivity();
+        service = new MediaService(storage, normalizer, activity);
+    }
+
+    /** What the domain reported, without Micrometer. */
+    private static final class RecordingActivity implements MediaActivity {
+
+        private final List<String> stored = new ArrayList<>();
+
+        @Override
+        public void mediaStored(String client, long bytes) {
+            stored.add(client + ":" + bytes);
+        }
     }
 
     private static boolean failsWith(Throwable error, BusinessErrorCode code) {
@@ -68,6 +83,8 @@ class MediaServiceTest {
         StepVerifier.create(service.store(CHAT, "chat/c1/m1.jpg", UPLOAD, MediaProfile.PHOTO))
                 .expectNext(new StoredMedia("chat/c1/m1.jpg", 1600, 1200, "image/jpeg"))
                 .expectComplete().verify(Duration.ofSeconds(10));
+
+        assertThat(activity.stored).containsExactly("chat:1");
     }
 
     @Test
@@ -78,6 +95,7 @@ class MediaServiceTest {
                 .verify(Duration.ofSeconds(10));
 
         verifyNoInteractions(normalizer, storage);
+        assertThat(activity.stored).isEmpty();
     }
 
     @Test
@@ -97,6 +115,7 @@ class MediaServiceTest {
                 .verify(Duration.ofSeconds(10));
 
         verify(storage, never()).put(anyString(), anyString(), any(), anyString());
+        assertThat(activity.stored).isEmpty();
     }
 
     @Test
@@ -109,6 +128,9 @@ class MediaServiceTest {
         StepVerifier.create(service.store(CHAT, "chat/c1/m1.jpg", UPLOAD, MediaProfile.PHOTO))
                 .expectErrorMatches(error -> failsWith(error, TechnicalErrorCode.STORAGE_UNAVAILABLE))
                 .verify(Duration.ofSeconds(10));
+
+        // A failed write stored nothing: nothing is reported.
+        assertThat(activity.stored).isEmpty();
     }
 
     @Test

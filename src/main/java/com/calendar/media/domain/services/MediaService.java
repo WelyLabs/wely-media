@@ -4,6 +4,7 @@ import com.calendar.media.domain.models.MediaClient;
 import com.calendar.media.domain.models.MediaProfile;
 import com.calendar.media.domain.models.StoredMedia;
 import com.calendar.media.domain.ports.ImageNormalizer;
+import com.calendar.media.domain.ports.MediaActivity;
 import com.calendar.media.domain.ports.ObjectStorage;
 import com.calendar.media.exception.BusinessErrorCode;
 import com.calendar.media.exception.BusinessException;
@@ -27,13 +28,18 @@ public class MediaService {
 
     private final ObjectStorage storage;
     private final ImageNormalizer normalizer;
+    private final MediaActivity activity;
 
-    public MediaService(ObjectStorage storage, ImageNormalizer normalizer) {
+    public MediaService(ObjectStorage storage, ImageNormalizer normalizer, MediaActivity activity) {
         this.storage = storage;
         this.normalizer = normalizer;
+        this.activity = activity;
     }
 
-    /** The key is checked before the upload is decoded: a forbidden key costs nothing. */
+    /**
+     * The key is checked before the upload is decoded: a forbidden key costs nothing. The store is
+     * reported only once the write succeeded.
+     */
     public Mono<StoredMedia> store(MediaClient client, String key, byte[] bytes, MediaProfile profile) {
         return Mono.defer(() -> {
             if (!client.owns(key)) {
@@ -41,6 +47,7 @@ public class MediaService {
             }
             return normalizer.normalize(bytes, profile)
                     .flatMap(image -> storage.put(client.bucket(), key, image.content(), image.contentType())
+                            .then(Mono.fromRunnable(() -> activity.mediaStored(client.name(), image.content().length)))
                             .thenReturn(new StoredMedia(key, image.width(), image.height(), image.contentType())));
         });
     }

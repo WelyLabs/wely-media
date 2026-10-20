@@ -141,6 +141,19 @@ class MediaSecurityConfigTest {
     }
 
     @Test
+    @DisplayName("the scrape carries the HTTP latency in the fixed SLO buckets")
+    void internalHttpSecurity_shouldExposeTheHttpLatencyBuckets() {
+        client().get().uri("/actuator/health/liveness").exchange().expectStatus().isOk();
+
+        client().get().uri("/actuator/prometheus")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class)
+                .value(body -> assertThat(body).containsPattern("http_server_requests_seconds_bucket\\{[^}]*le=\"0\\.25\"")
+                        .containsPattern("http_server_requests_seconds_bucket\\{[^}]*le=\"2\\.5\""));
+    }
+
+    @Test
     @DisplayName("opening the scrape opens nothing else: other actuator paths stay closed or unexposed")
     void internalHttpSecurity_shouldKeepTheRestOfTheActuatorClosed() {
         client().get().uri("/actuator/env").exchange().expectStatus().isUnauthorized();

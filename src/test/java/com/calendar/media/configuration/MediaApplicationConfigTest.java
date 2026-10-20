@@ -1,6 +1,7 @@
 package com.calendar.media.configuration;
 
 import com.calendar.media.domain.ports.ImageNormalizer;
+import com.calendar.media.domain.ports.MediaActivity;
 import com.calendar.media.domain.ports.ObjectStorage;
 import org.junit.jupiter.api.Test;
 
@@ -15,7 +16,8 @@ class MediaApplicationConfigTest {
 
     @Test
     void mediaService_shouldBeBuiltWithoutSpring() {
-        assertThat(config.mediaService(mock(ObjectStorage.class), mock(ImageNormalizer.class))).isNotNull();
+        assertThat(config.mediaService(mock(ObjectStorage.class), mock(ImageNormalizer.class),
+                mock(MediaActivity.class))).isNotNull();
     }
 
     @Test
