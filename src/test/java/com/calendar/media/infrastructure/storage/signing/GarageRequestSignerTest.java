@@ -61,6 +61,18 @@ class GarageRequestSignerTest {
     }
 
     @Test
+    @DisplayName("userinfo in a configured endpoint never reaches the request URL, so no log can print it")
+    void presign_shouldDropUserinfoFromTheEndpoint() {
+        GarageRequestSigner signer = new GarageRequestSigner("GK000000000000000000000000", "secret", "garage", FIXED);
+
+        URI url = signer.presign("PUT", URI.create("http://wely:s3cr3t@localhost:3900"), "/b/k", Duration.ofMinutes(1),
+                Map.of());
+
+        assertThat(url.getUserInfo()).isNull();
+        assertThat(url.toString()).startsWith("http://localhost:3900/b/k?").doesNotContain("s3cr3t");
+    }
+
+    @Test
     void encode_shouldKeepOnlyUnreservedCharacters() {
         assertThat(GarageRequestSigner.encode("a-Z_0.9~")).isEqualTo("a-Z_0.9~");
         assertThat(GarageRequestSigner.encode("a b/c+é")).isEqualTo("a%20b%2Fc%2B%C3%A9");
