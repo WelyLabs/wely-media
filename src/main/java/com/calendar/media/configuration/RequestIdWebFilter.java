@@ -23,7 +23,7 @@ import static com.calendar.media.exception.RequestIds.REQUEST_ID_HEADER;
  * missing or does not look like an id is replaced by this server's own request id: the value ends up
  * in logs, so it is never trusted as sent.
  *
- * <p>Not forwarded anywhere: this service calls no other Wely service, and Garage, an external
+ * <p>Not forwarded anywhere: this service calls no other Wely service, and the object storage, an external
  * store, must not receive it.
  */
 @Component

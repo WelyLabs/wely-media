@@ -17,13 +17,13 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 /**
- * Signs Garage requests in the URL itself, with the "AWS Signature Version 4" scheme its S3 API
+ * Signs storage requests in the URL itself, with the "AWS Signature Version 4" scheme the S3 API
  * requires (the protocol keeps that name; no AWS service is involved).
  *
  * <p>Only the host is signed, and the payload is declared unsigned: a URL signed here can be
  * handed to any HTTP client, including a browser, and stays valid until it expires.
  */
-public class GarageRequestSigner {
+public class SigV4RequestSigner {
 
     private static final String ALGORITHM = "AWS4-HMAC-SHA256";
     private static final String SERVICE = "s3";
@@ -38,7 +38,7 @@ public class GarageRequestSigner {
     private final String region;
     private final Clock clock;
 
-    public GarageRequestSigner(String accessKey, String secretKey, String region, Clock clock) {
+    public SigV4RequestSigner(String accessKey, String secretKey, String region, Clock clock) {
         this.accessKey = accessKey;
         this.secretKey = secretKey;
         this.region = region;
@@ -84,7 +84,7 @@ public class GarageRequestSigner {
 
     private static String encodePath(String path) {
         return Arrays.stream(path.split("/", -1))
-                .map(GarageRequestSigner::encode)
+                .map(SigV4RequestSigner::encode)
                 .collect(Collectors.joining("/"));
     }
 

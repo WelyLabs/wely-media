@@ -1,6 +1,6 @@
 package com.calendar.media.configuration;
 
-import com.calendar.media.infrastructure.storage.signing.GarageRequestSigner;
+import com.calendar.media.infrastructure.storage.signing.SigV4RequestSigner;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -8,7 +8,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 
 import java.time.Clock;
 
-/** The object storage, Garage in the cluster: an HTTP client and the signer for its S3 API. */
+/** The object storage, Cloudflare R2: an HTTP client and the signer for its S3 API. */
 @Configuration
 public class StorageClientConfig {
 
@@ -19,10 +19,10 @@ public class StorageClientConfig {
     }
 
     @Bean
-    public GarageRequestSigner garageRequestSigner(@Value("${app.storage.access-key}") String accessKey,
+    public SigV4RequestSigner sigV4RequestSigner(@Value("${app.storage.access-key}") String accessKey,
                                                    @Value("${app.storage.secret-key}") String secretKey,
                                                    @Value("${app.storage.region}") String region,
                                                    Clock clock) {
-        return new GarageRequestSigner(accessKey, secretKey, region, clock);
+        return new SigV4RequestSigner(accessKey, secretKey, region, clock);
     }
 }

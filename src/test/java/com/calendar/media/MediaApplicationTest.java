@@ -4,7 +4,7 @@ import com.calendar.media.domain.ports.ImageNormalizer;
 import com.calendar.media.domain.ports.ObjectStorage;
 import com.calendar.media.domain.services.MediaService;
 import com.calendar.media.infrastructure.imaging.adapters.ImageIoImageNormalizerAdapter;
-import com.calendar.media.infrastructure.storage.adapters.GarageObjectStorageAdapter;
+import com.calendar.media.infrastructure.storage.adapters.S3ObjectStorageAdapter;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -15,7 +15,7 @@ import java.time.Clock;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** The context starts without Garage, and the ports resolve to their adapters. */
+/** The context starts without the object storage, and the ports resolve to their adapters. */
 @SpringBootTest
 @ActiveProfiles("test")
 class MediaApplicationTest {
@@ -26,7 +26,7 @@ class MediaApplicationTest {
     @Test
     void contextShouldWireTheDomainServiceAndItsAdapters() {
         assertThat(context.getBean(MediaService.class)).isNotNull();
-        assertThat(context.getBean(ObjectStorage.class)).isInstanceOf(GarageObjectStorageAdapter.class);
+        assertThat(context.getBean(ObjectStorage.class)).isInstanceOf(S3ObjectStorageAdapter.class);
         assertThat(context.getBean(ImageNormalizer.class)).isInstanceOf(ImageIoImageNormalizerAdapter.class);
         assertThat(context.getBean(Clock.class).getZone()).isEqualTo(Clock.systemUTC().getZone());
     }

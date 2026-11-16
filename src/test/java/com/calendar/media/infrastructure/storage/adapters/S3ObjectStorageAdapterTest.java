@@ -5,7 +5,7 @@ import com.calendar.media.exception.BusinessException;
 import com.calendar.media.exception.RequestIds;
 import com.calendar.media.exception.TechnicalErrorCode;
 import com.calendar.media.exception.TechnicalException;
-import com.calendar.media.infrastructure.storage.signing.GarageRequestSigner;
+import com.calendar.media.infrastructure.storage.signing.SigV4RequestSigner;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -35,8 +35,8 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** Requests go to a stub exchange: what is checked is what the adapter sends, not Garage. */
-class GarageObjectStorageAdapterTest {
+/** Requests go to a stub exchange: what is checked is what the adapter sends, not the storage. */
+class S3ObjectStorageAdapterTest {
 
     private static final int PAGE_SIZE = 200;
 
@@ -44,7 +44,7 @@ class GarageObjectStorageAdapterTest {
     /** Answered first, one per request, before falling back to {@link #answer}. */
     private final Deque<Mono<ClientResponse>> pages = new ArrayDeque<>();
     private Mono<ClientResponse> answer;
-    private GarageObjectStorageAdapter storage;
+    private S3ObjectStorageAdapter storage;
 
     @BeforeEach
     void setUp() {
@@ -55,9 +55,9 @@ class GarageObjectStorageAdapterTest {
                     return pages.isEmpty() ? answer : pages.removeFirst();
                 })
                 .build();
-        GarageRequestSigner signer = new GarageRequestSigner("GK000000000000000000000000",
-                "0000000000000000000000000000000000000000000000000000000000000000", "garage", Clock.systemUTC());
-        storage = new GarageObjectStorageAdapter(client, signer, URI.create("http://dev-wely-garage-service:3900"),
+        SigV4RequestSigner signer = new SigV4RequestSigner("GK000000000000000000000000",
+                "0000000000000000000000000000000000000000000000000000000000000000", "auto", Clock.systemUTC());
+        storage = new S3ObjectStorageAdapter(client, signer, URI.create("http://wely-storage:3900"),
                 URI.create("https://dev-media.welylabs.app"), PAGE_SIZE);
     }
 
@@ -102,11 +102,11 @@ class GarageObjectStorageAdapterTest {
 
         ClientRequest request = sent.getFirst();
         assertThat(request.method()).isEqualTo(HttpMethod.PUT);
-        assertThat(request.url().getAuthority()).isEqualTo("dev-wely-garage-service:3900");
+        assertThat(request.url().getAuthority()).isEqualTo("wely-storage:3900");
         assertThat(request.url().getPath()).isEqualTo("/wely-chat-media/chat/c1/m1.jpg");
         assertThat(request.url().getQuery()).contains("X-Amz-Expires=60").contains("X-Amz-Signature=");
         assertThat(request.headers().getFirst(HttpHeaders.CONTENT_TYPE)).isEqualTo("image/jpeg");
-        assertThat(request.headers().getFirst(HttpHeaders.CACHE_CONTROL)).isEqualTo(GarageObjectStorageAdapter.CACHE_CONTROL);
+        assertThat(request.headers().getFirst(HttpHeaders.CACHE_CONTROL)).isEqualTo(S3ObjectStorageAdapter.CACHE_CONTROL);
     }
 
     @Test
@@ -118,26 +118,26 @@ class GarageObjectStorageAdapterTest {
     }
 
     @Test
-    void put_shouldFail_whenGarageRefuses() {
+    void put_shouldFail_whenStorageRefuses() {
         answer = Mono.just(ClientResponse.create(HttpStatus.FORBIDDEN).build());
 
         StepVerifier.create(storage.put("wely-chat-media", "chat/c1/m1.jpg", new byte[] {1}, "image/jpeg"))
-                .expectErrorMatches(GarageObjectStorageAdapterTest::unavailable)
+                .expectErrorMatches(S3ObjectStorageAdapterTest::unavailable)
                 .verify(Duration.ofSeconds(10));
     }
 
     @Test
-    void put_shouldFail_whenGarageIsUnreachable() {
+    void put_shouldFail_whenStorageIsUnreachable() {
         answer = Mono.error(new IOException("Connection refused"));
 
         StepVerifier.create(storage.put("wely-chat-media", "chat/c1/m1.jpg", new byte[] {1}, "image/jpeg"))
-                .expectErrorMatches(GarageObjectStorageAdapterTest::unavailable)
+                .expectErrorMatches(S3ObjectStorageAdapterTest::unavailable)
                 .verify(Duration.ofSeconds(10));
     }
 
     @Test
-    @DisplayName("the original Garage failure is kept as the cause, so the ERROR log shows it")
-    void put_shouldKeepTheOriginalFailureAsCause_whenGarageIsUnreachable() {
+    @DisplayName("the original storage failure is kept as the cause, so the ERROR log shows it")
+    void put_shouldKeepTheOriginalFailureAsCause_whenStorageIsUnreachable() {
         IOException refused = new IOException("Connection refused");
         answer = Mono.error(refused);
 
@@ -150,8 +150,8 @@ class GarageObjectStorageAdapterTest {
     }
 
     @Test
-    @DisplayName("Garage is external: the request id in the Reactor Context is never sent to it")
-    void put_shouldNotSendTheRequestId_toGarage() {
+    @DisplayName("the storage is external: the request id in the Reactor Context is never sent to it")
+    void put_shouldNotSendTheRequestId_toStorage() {
         StepVerifier.create(storage.put("wely-chat-media", "chat/c1/m1.jpg", new byte[] {1}, "image/jpeg")
                         .contextWrite(Context.of(RequestIds.REQUEST_ID_ATTRIBUTE, "abcd1234-gateway-id")))
                 .expectComplete()
@@ -189,16 +189,16 @@ class GarageObjectStorageAdapterTest {
 
         ClientRequest request = sent.getFirst();
         assertThat(request.method()).isEqualTo(HttpMethod.DELETE);
-        assertThat(request.url().getAuthority()).isEqualTo("dev-wely-garage-service:3900");
+        assertThat(request.url().getAuthority()).isEqualTo("wely-storage:3900");
         assertThat(request.url().getPath()).isEqualTo("/wely-avatars/avatars/u1/a.jpg");
     }
 
     @Test
-    void delete_shouldFail_whenGarageIsDown() {
+    void delete_shouldFail_whenStorageIsDown() {
         answer = Mono.just(ClientResponse.create(HttpStatus.SERVICE_UNAVAILABLE).build());
 
         StepVerifier.create(storage.delete("wely-avatars", "avatars/u1/a.jpg"))
-                .expectErrorMatches(GarageObjectStorageAdapterTest::unavailable)
+                .expectErrorMatches(S3ObjectStorageAdapterTest::unavailable)
                 .verify(Duration.ofSeconds(10));
     }
 
@@ -211,7 +211,7 @@ class GarageObjectStorageAdapterTest {
 
         ClientRequest request = sent.getFirst();
         assertThat(request.method()).isEqualTo(HttpMethod.GET);
-        assertThat(request.url().getAuthority()).isEqualTo("dev-wely-garage-service:3900");
+        assertThat(request.url().getAuthority()).isEqualTo("wely-storage:3900");
         assertThat(request.url().getPath()).isEqualTo("/wely-avatars");
         assertThat(request.url().getQuery())
                 .contains("list-type=2")
@@ -256,7 +256,7 @@ class GarageObjectStorageAdapterTest {
 
         StepVerifier.create(storage.list("wely-avatars", "avatars/u1/"))
                 .expectNext("avatars/u1/a.jpg")
-                .expectErrorMatches(GarageObjectStorageAdapterTest::unavailable)
+                .expectErrorMatches(S3ObjectStorageAdapterTest::unavailable)
                 .verify(Duration.ofSeconds(10));
 
         assertThat(sent).hasSize(2);
@@ -270,20 +270,20 @@ class GarageObjectStorageAdapterTest {
     }
 
     @Test
-    void list_shouldFail_whenGarageRefuses() {
+    void list_shouldFail_whenStorageRefuses() {
         answer = Mono.just(ClientResponse.create(HttpStatus.FORBIDDEN).build());
 
         StepVerifier.create(storage.list("wely-avatars", "avatars/u1/"))
-                .expectErrorMatches(GarageObjectStorageAdapterTest::unavailable)
+                .expectErrorMatches(S3ObjectStorageAdapterTest::unavailable)
                 .verify(Duration.ofSeconds(10));
     }
 
     @Test
-    void list_shouldFail_whenGarageIsUnreachable() {
+    void list_shouldFail_whenStorageIsUnreachable() {
         answer = Mono.error(new IOException("Connection refused"));
 
         StepVerifier.create(storage.list("wely-avatars", "avatars/u1/"))
-                .expectErrorMatches(GarageObjectStorageAdapterTest::unavailable)
+                .expectErrorMatches(S3ObjectStorageAdapterTest::unavailable)
                 .verify(Duration.ofSeconds(10));
     }
 
@@ -293,11 +293,11 @@ class GarageObjectStorageAdapterTest {
         pages.add(Mono.just(ClientResponse.create(HttpStatus.OK).body("<html><body>Bad gateway</body></html>").build()));
 
         StepVerifier.create(storage.list("wely-avatars", "avatars/u1/"))
-                .expectErrorMatches(GarageObjectStorageAdapterTest::unavailable)
+                .expectErrorMatches(S3ObjectStorageAdapterTest::unavailable)
                 .verify(Duration.ofSeconds(10));
 
         StepVerifier.create(storage.list("wely-avatars", "avatars/u1/"))
-                .expectErrorMatches(GarageObjectStorageAdapterTest::unavailable)
+                .expectErrorMatches(S3ObjectStorageAdapterTest::unavailable)
                 .verify(Duration.ofSeconds(10));
     }
 
@@ -311,7 +311,7 @@ class GarageObjectStorageAdapterTest {
                 .build()));
 
         StepVerifier.create(storage.list("wely-avatars", "avatars/u1/"))
-                .expectErrorMatches(GarageObjectStorageAdapterTest::unavailable)
+                .expectErrorMatches(S3ObjectStorageAdapterTest::unavailable)
                 .verify(Duration.ofSeconds(10));
     }
 
@@ -323,7 +323,7 @@ class GarageObjectStorageAdapterTest {
 
         StepVerifier.create(storage.list("wely-avatars", "avatars/u1/"))
                 .expectNext("avatars/u1/a.jpg")
-                .expectErrorMatches(GarageObjectStorageAdapterTest::unavailable)
+                .expectErrorMatches(S3ObjectStorageAdapterTest::unavailable)
                 .verify(Duration.ofSeconds(10));
     }
 
@@ -335,9 +335,9 @@ class GarageObjectStorageAdapterTest {
     private static final String ACCESS_KEY = "GKs3cr3tACCESSKEY0000000000";
     private static final String SECRET_KEY = "s3cr3tSECRETKEY";
 
-    private static GarageObjectStorageAdapter realClientTowards(URI endpoint) {
-        GarageRequestSigner signer = new GarageRequestSigner(ACCESS_KEY, SECRET_KEY, "garage", Clock.systemUTC());
-        return new GarageObjectStorageAdapter(WebClient.builder().build(), signer, endpoint, endpoint, PAGE_SIZE);
+    private static S3ObjectStorageAdapter realClientTowards(URI endpoint) {
+        SigV4RequestSigner signer = new SigV4RequestSigner(ACCESS_KEY, SECRET_KEY, "auto", Clock.systemUTC());
+        return new S3ObjectStorageAdapter(WebClient.builder().build(), signer, endpoint, endpoint, PAGE_SIZE);
     }
 
     private static String wholeChain(Throwable error) {
@@ -354,30 +354,30 @@ class GarageObjectStorageAdapterTest {
     }
 
     @Test
-    @DisplayName("an unreachable Garage leaves no key or signature in the logged cause chain")
-    void put_shouldKeepCredentialsOutOfTheFailure_whenGarageIsUnreachable() {
+    @DisplayName("an unreachable storage leaves no key or signature in the logged cause chain")
+    void put_shouldKeepCredentialsOutOfTheFailure_whenStorageIsUnreachable() {
         // Port 1 on loopback: refused at once, no timeout to wait for.
-        GarageObjectStorageAdapter unreachable = realClientTowards(URI.create("http://127.0.0.1:1"));
+        S3ObjectStorageAdapter unreachable = realClientTowards(URI.create("http://127.0.0.1:1"));
 
         StepVerifier.create(unreachable.put("wely-chat-media", "chat/c1/m1.jpg", new byte[] {1}, "image/jpeg"))
-                .expectErrorSatisfies(GarageObjectStorageAdapterTest::assertNoCredentials)
+                .expectErrorSatisfies(S3ObjectStorageAdapterTest::assertNoCredentials)
                 .verify(Duration.ofSeconds(10));
     }
 
     @Test
-    @DisplayName("an error answer from Garage leaves no key or signature in the logged cause chain")
-    void put_shouldKeepCredentialsOutOfTheFailure_whenGarageAnswersAnError() {
-        DisposableServer garage = HttpServer.create().host("127.0.0.1").port(0)
+    @DisplayName("an error answer from the storage leaves no key or signature in the logged cause chain")
+    void put_shouldKeepCredentialsOutOfTheFailure_whenStorageAnswersAnError() {
+        DisposableServer storage = HttpServer.create().host("127.0.0.1").port(0)
                 .handle((request, response) -> response.status(403).sendString(Mono.just("<Error>AccessDenied</Error>")))
                 .bindNow();
         try {
-            GarageObjectStorageAdapter refusing = realClientTowards(URI.create("http://127.0.0.1:" + garage.port()));
+            S3ObjectStorageAdapter refusing = realClientTowards(URI.create("http://127.0.0.1:" + storage.port()));
 
             StepVerifier.create(refusing.put("wely-chat-media", "chat/c1/m1.jpg", new byte[] {1}, "image/jpeg"))
-                    .expectErrorSatisfies(GarageObjectStorageAdapterTest::assertNoCredentials)
+                    .expectErrorSatisfies(S3ObjectStorageAdapterTest::assertNoCredentials)
                     .verify(Duration.ofSeconds(10));
         } finally {
-            garage.disposeNow();
+            storage.disposeNow();
         }
     }
 }

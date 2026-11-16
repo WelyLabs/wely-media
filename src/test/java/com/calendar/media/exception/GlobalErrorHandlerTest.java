@@ -60,7 +60,7 @@ class GlobalErrorHandlerTest {
 
         @GetMapping("/generic-error")
         Mono<Void> genericError() {
-            return Mono.error(new IllegalStateException("http://GK123:secret@garage:3900"));
+            return Mono.error(new IllegalStateException("http://GK123:secret@wely-storage:3900"));
         }
 
         @GetMapping("/gone")
@@ -170,7 +170,7 @@ class GlobalErrorHandlerTest {
                 .jsonPath("$.code").isEqualTo(GlobalErrorHandler.UNEXPECTED_FAILURE_CODE)
                 .jsonPath("$.requestId").value(GlobalErrorHandlerTest::assertNotBlank)
                 .jsonPath("$.detail").value(detail -> {
-                    if (detail.toString().contains("secret") || detail.toString().contains("garage")) {
+                    if (detail.toString().contains("secret") || detail.toString().contains("wely-storage")) {
                         throw new AssertionError("the original message leaked into the response");
                     }
                 });

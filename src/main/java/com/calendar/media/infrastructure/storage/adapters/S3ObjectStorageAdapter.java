@@ -6,7 +6,7 @@ import com.calendar.media.exception.TechnicalErrorCode;
 import com.calendar.media.exception.TechnicalException;
 import com.calendar.media.infrastructure.storage.listing.ListBucketPage;
 import com.calendar.media.infrastructure.storage.listing.ListBucketResultParser;
-import com.calendar.media.infrastructure.storage.signing.GarageRequestSigner;
+import com.calendar.media.infrastructure.storage.signing.SigV4RequestSigner;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -22,22 +22,22 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
-/** Private Garage buckets through signed S3 calls; any failure reaching Garage becomes STORAGE_UNAVAILABLE. */
+/** Private buckets through signed S3 calls; any failure reaching the storage becomes STORAGE_UNAVAILABLE. */
 @Component
-public class GarageObjectStorageAdapter implements ObjectStorage {
+public class S3ObjectStorageAdapter implements ObjectStorage {
 
     static final String CACHE_CONTROL = "private, max-age=3600";
     /** An internal request is signed just before it is sent, so a minute is ample. */
     static final Duration WRITE_TTL = Duration.ofMinutes(1);
 
     private final WebClient client;
-    private final GarageRequestSigner signer;
+    private final SigV4RequestSigner signer;
     private final URI internalEndpoint;
     private final URI publicEndpoint;
     private final int listPageSize;
 
-    public GarageObjectStorageAdapter(@Qualifier("storageWebClient") WebClient client,
-                                      GarageRequestSigner signer,
+    public S3ObjectStorageAdapter(@Qualifier("storageWebClient") WebClient client,
+                                      SigV4RequestSigner signer,
                                       @Value("${app.storage.internal-endpoint}") URI internalEndpoint,
                                       @Value("${app.storage.public-endpoint}") URI publicEndpoint,
                                       @Value("${app.storage.list-page-size:200}") int listPageSize) {
@@ -58,10 +58,10 @@ public class GarageObjectStorageAdapter implements ObjectStorage {
                         .retrieve()
                         .toBodilessEntity()
                         .then())
-                .onErrorMap(GarageObjectStorageAdapter::unexpected, GarageObjectStorageAdapter::unavailable);
+                .onErrorMap(S3ObjectStorageAdapter::unexpected, S3ObjectStorageAdapter::unavailable);
     }
 
-    /** Garage answers 204 for a missing key too, so deleting twice is not an error. */
+    /** S3 answers 204 for a missing key too, so deleting twice is not an error. */
     @Override
     public Mono<Void> delete(String bucket, String key) {
         return Mono.defer(() -> client.delete()
@@ -69,7 +69,7 @@ public class GarageObjectStorageAdapter implements ObjectStorage {
                         .retrieve()
                         .toBodilessEntity()
                         .then())
-                .onErrorMap(GarageObjectStorageAdapter::unexpected, GarageObjectStorageAdapter::unavailable);
+                .onErrorMap(S3ObjectStorageAdapter::unexpected, S3ObjectStorageAdapter::unavailable);
     }
 
     /** ListObjectsV2, one signed request per page, following the continuation token. */
@@ -107,7 +107,7 @@ public class GarageObjectStorageAdapter implements ObjectStorage {
                 .flatMap(page -> token != null && Objects.equals(page.nextToken(), token)
                         ? Mono.<ListBucketPage>error(new IllegalStateException("Bucket listing repeated its continuation token"))
                         : Mono.just(page))
-                .onErrorMap(GarageObjectStorageAdapter::unexpected, GarageObjectStorageAdapter::unavailable);
+                .onErrorMap(S3ObjectStorageAdapter::unexpected, S3ObjectStorageAdapter::unavailable);
     }
 
     /** Path-style addressing: there is no wildcard hostname per bucket. */

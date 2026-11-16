@@ -19,10 +19,10 @@ class StorageClientConfigTest {
     }
 
     @Test
-    void garageRequestSigner_shouldSignWithTheConfiguredKeyAndRegion() {
-        URI url = config.garageRequestSigner("GK1", "secret", "garage", Clock.systemUTC())
+    void sigV4RequestSigner_shouldSignWithTheConfiguredKeyAndRegion() {
+        URI url = config.sigV4RequestSigner("GK1", "secret", "auto", Clock.systemUTC())
                 .presign("GET", URI.create("http://localhost:3900"), "/b/k", Duration.ofMinutes(1), Map.of());
 
-        assertThat(url.getRawQuery()).contains("X-Amz-Credential=GK1%2F").contains("%2Fgarage%2Fs3%2F");
+        assertThat(url.getRawQuery()).contains("X-Amz-Credential=GK1%2F").contains("%2Fauto%2Fs3%2F");
     }
 }

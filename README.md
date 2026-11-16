@@ -29,7 +29,7 @@ Java 25 · Spring Boot 4 · WebFlux · Spring Security (secret partagé) · Imag
 |---|---|
 | **Les octets ici, les règles là-bas** | Qui peut voir l'avatar d'un utilisateur, la photo d'une conversation ou le justificatif d'une dépense, c'est une question métier : chaque service la tranche avec ses propres données. `wely-media` ne sait rien des utilisateurs ni des conversations ; il normalise, stocke, supprime et signe. |
 | **Une seule implémentation** | La normalisation ImageIO, le client S3 et la signature SigV4 existaient en double dans `wely-users` et `wely-chat`. Ils vivent maintenant ici, une fois, avec leurs tests. |
-| **Moindre privilège** | Chaque appelant a **son secret**, **son préfixe de clé** et **son bucket**. `wely-chat` ne peut écrire que sous `chat/` dans `wely-chat-media` : un secret volé n'ouvre qu'un seul tiroir. Les identifiants Garage ne sont plus que dans ce service. |
+| **Moindre privilège** | Chaque appelant a **son secret**, **son préfixe de clé** et **son bucket**. `wely-chat` ne peut écrire que sous `chat/` dans `wely-chat-media` : un secret volé n'ouvre qu'un seul tiroir. Les identifiants R2 ne sont plus que dans ce service. |
 | **Pas de route gateway** | Le navigateur ne parle jamais à `wely-media`. Il reçoit d'un service métier une URL S3 **pré-signée**, à durée limitée, et télécharge directement l'image. |
 
 ```
@@ -66,8 +66,8 @@ Java 25 · Spring Boot 4 · WebFlux · Spring Security (secret partagé) · Imag
                                   │                     │
             ┌─────────────────────┴──────┐   ┌──────────┴──────────────────┐
             │ infrastructure/storage     │   │ infrastructure/imaging      │
-            │ GarageObjectStorageAdapter │   │ ImageIoImageNormalizerAdapter│
-            │ GarageRequestSigner (SigV4)│   └─────────────────────────────┘
+            │ S3ObjectStorageAdapter     │   │ ImageIoImageNormalizerAdapter│
+            │ SigV4RequestSigner         │   └─────────────────────────────┘
             │ ListBucketResultParser     │
             └────────────┬───────────────┘
                          ▼
@@ -114,7 +114,7 @@ Une clé doit commencer par le préfixe de l'appelant, ne contenir que `[A-Za-z0
 - **Idempotent.** Each call lists what is left: rerunning an interrupted purge, or one that timed out on the caller's side, deletes only the rest and answers **204**.
 - The number of deleted objects is logged with the caller's name, **never the prefix**, which contains a user id.
 
-**Retention after deletion.** A purged picture is gone as soon as R2 acknowledges the delete: there is no backup to outlive it, and versioning is off on the buckets. Until November 2026 the bytes were on a self-hosted Garage whose nightly backup kept them, and their keys, for 7 days — a restore inside that window then had to be followed by a fresh purge of the accounts deleted since. That window no longer exists, which is the stricter behaviour for erasure and one less thing to remember.
+**Retention after deletion.** A purged picture is gone as soon as R2 acknowledges the delete: there is no backup to outlive it, and versioning is off on the buckets. Until November 2026 the bytes were on a self-hosted store whose nightly backup kept them, and their keys, for 7 days — a restore inside that window then had to be followed by a fresh purge of the accounts deleted since. That window no longer exists, which is the stricter behaviour for erasure and one less thing to remember.
 
 ### URLs signées
 
@@ -178,7 +178,7 @@ Toutes les réponses d'erreur sont des `ProblemDetail` (RFC 7807) :
 | Profil | Usage |
 |---|---|
 | *(aucun)* / `prod` | `application.properties` — tout vient de l'environnement |
-| `dev` | Endpoint S3 sur `localhost:3900` (un Garage ou un MinIO de poste) ; aucun secret par défaut |
+| `dev` | Endpoint S3 sur `localhost:3900` (un stockage S3 de poste, MinIO par exemple) ; aucun secret par défaut |
 
 ---
 
@@ -188,7 +188,7 @@ Toutes les réponses d'erreur sont des `ProblemDetail` (RFC 7807) :
 |---|---|---|
 | `MEDIA_INTERNAL_ENDPOINT` | — (requis) | Endpoint S3 pour les écritures (`https://<account>.r2.cloudflarestorage.com`) |
 | `MEDIA_PUBLIC_ENDPOINT` | — (requis) | Endpoint S3 pour les URLs signées ; le même sur R2, l'écriture et la lecture passant par le même hôte |
-| `MEDIA_REGION` | `garage` | Région déclarée dans la signature SigV4 — `auto` sur R2 |
+| `MEDIA_REGION` | `auto` | Région déclarée dans la signature SigV4 ; `auto` est celle de R2 |
 | `MEDIA_ACCESS_KEY` / `MEDIA_SECRET_KEY` | vide | Clé S3 ; vide, le service démarre et répond `MED-TEC-001` |
 | `INTERNAL_SECRET_USERS` | vide | Secret de `wely-users` (préfixe `avatars/`) |
 | `INTERNAL_SECRET_CHAT` | vide | Secret de `wely-chat` (préfixe `chat/`) |
@@ -237,7 +237,7 @@ curl -H 'X-Internal-Secret: local-chat-secret' \
 ./mvnw verify                                                           # + couverture, seuil 80 % de lignes
 ```
 
-`GarageObjectStorageAdapterIntegrationTest` démarre un vrai Garage en conteneur (Testcontainers) — l'implémentation S3 porte encore ce nom, hérité du stockage d'origine, et un Garage local reste un bon double de R2 pour la signature SigV4 et `ListObjectsV2` : il tourne en CI (`CI=true`) ou avec `-Dintegration.tests=true`, et exige un démon Docker.
+`S3ObjectStorageAdapterIntegrationTest` démarre un vrai stockage S3 en conteneur (Testcontainers, image Garage) : c'est un double local de R2, suffisant pour la signature SigV4 et `ListObjectsV2`. Il tourne en CI (`CI=true`) ou avec `-Dintegration.tests=true`, et exige un démon Docker.
 
 It covers writes, signed URLs, deletion, and walking a folder over several listing pages without spilling onto a neighbour with a similar name.
 

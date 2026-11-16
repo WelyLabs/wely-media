@@ -1,7 +1,7 @@
 package com.calendar.media.infrastructure.storage.adapters;
 
 import com.calendar.media.configuration.StorageClientConfig;
-import com.calendar.media.infrastructure.storage.signing.GarageRequestSigner;
+import com.calendar.media.infrastructure.storage.signing.SigV4RequestSigner;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,10 +23,11 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** The storage against a real Garage: what it accepts, lists and refuses, and what a signed URL opens. */
+/** The storage against a real S3 — a Garage container, local stand-in for R2: what it accepts, lists and
+ * refuses, and what a signed URL opens. */
 @Testcontainers
 @EnabledIf("containersRequested")
-class GarageObjectStorageAdapterIntegrationTest {
+class S3ObjectStorageAdapterIntegrationTest {
 
     private static final String ACCESS_KEY = "GK0123456789abcdef01234567";
     private static final String SECRET_KEY = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
@@ -41,7 +42,7 @@ class GarageObjectStorageAdapterIntegrationTest {
             .waitingFor(Wait.forHttp("/health").forPort(3903).forStatusCodeMatching(code -> code < 600));
 
     private static final HttpClient HTTP = HttpClient.newHttpClient();
-    private static GarageObjectStorageAdapter storage;
+    private static S3ObjectStorageAdapter storage;
 
     static boolean containersRequested() {
         return System.getenv("CI") != null || Boolean.getBoolean("integration.tests");
@@ -49,7 +50,7 @@ class GarageObjectStorageAdapterIntegrationTest {
 
     /** The same steps as the gitops setup Job: layout, bucket, imported key, permissions. */
     @BeforeAll
-    static void setUpGarage() throws Exception {
+    static void setUpStorage() throws Exception {
         String node = admin("GetClusterStatus", null).replaceAll("(?s).*?\"id\"\\s*:\\s*\"([0-9a-f]+)\".*", "$1");
         admin("UpdateClusterLayout", "{\"roles\":[{\"id\":\"" + node + "\",\"zone\":\"test\",\"capacity\":1000000000,\"tags\":[]}]}");
         admin("ApplyClusterLayout", "{\"version\":1}");
@@ -60,8 +61,8 @@ class GarageObjectStorageAdapterIntegrationTest {
                 + "\",\"permissions\":{\"read\":true,\"write\":true,\"owner\":false}}");
 
         URI endpoint = URI.create("http://" + GARAGE.getHost() + ":" + GARAGE.getMappedPort(3900));
-        storage = new GarageObjectStorageAdapter(new StorageClientConfig().storageWebClient(),
-                new GarageRequestSigner(ACCESS_KEY, SECRET_KEY, "garage", Clock.systemUTC()), endpoint, endpoint,
+        storage = new S3ObjectStorageAdapter(new StorageClientConfig().storageWebClient(),
+                new SigV4RequestSigner(ACCESS_KEY, SECRET_KEY, "garage", Clock.systemUTC()), endpoint, endpoint,
                 LIST_PAGE_SIZE);
     }
 
@@ -136,7 +137,7 @@ class GarageObjectStorageAdapterIntegrationTest {
     }
 
     @Test
-    @DisplayName("every key under the prefix is listed, across pages, and Garage accepts the signed listing")
+    @DisplayName("every key under the prefix is listed, across pages, and the storage accepts the signed listing")
     void list_shouldListEveryKeyUnderThePrefixAcrossPages() {
         putAll("avatars/l1/a.jpg", "avatars/l1/b.jpg", "avatars/l1/c.jpg", "avatars/l1/old/d.jpg",
                 "avatars/l1/old/e.jpg", "avatars/l2/a.jpg");

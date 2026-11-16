@@ -67,17 +67,17 @@ class LogbackSpringXmlTest {
      * a URL carrying a password, and the other end answers an error.
      */
     private static TechnicalException storageErrorAnswerFromAUrlWithAPassword() {
-        DisposableServer garage = HttpServer.create().host("127.0.0.1").port(0)
+        DisposableServer storage = HttpServer.create().host("127.0.0.1").port(0)
                 .handle((request, response) -> response.status(401).sendString(Mono.just("<Error>denied</Error>")))
                 .bindNow();
         try {
             Throwable failure = catchThrowable(() -> new StorageClientConfig().storageWebClient()
-                    .get().uri("http://wely:" + SECRET + "@127.0.0.1:" + garage.port() + "/wely-avatars/avatars/u1.jpg")
+                    .get().uri("http://wely:" + SECRET + "@127.0.0.1:" + storage.port() + "/wely-avatars/avatars/u1.jpg")
                     .retrieve().toBodilessEntity()
                     .block(Duration.ofSeconds(10)));
             return new TechnicalException(TechnicalErrorCode.STORAGE_UNAVAILABLE, failure);
         } finally {
-            garage.disposeNow();
+            storage.disposeNow();
         }
     }
 
@@ -106,16 +106,16 @@ class LogbackSpringXmlTest {
     @Test
     void consolePattern_shouldMaskAUrlPassword_inTheMessage() {
         String line = format("401 Unauthorized from PUT http://wely:" + SECRET
-                + "@dev-wely-garage-service:3900/wely-avatars/avatars/u1.jpg", null);
+                + "@wely-storage:3900/wely-avatars/avatars/u1.jpg", null);
 
         assertThat(line).doesNotContain(SECRET)
-                .contains("http://wely:****@dev-wely-garage-service:3900/wely-avatars/avatars/u1.jpg");
+                .contains("http://wely:****@wely-storage:3900/wely-avatars/avatars/u1.jpg");
     }
 
     @Test
     void consolePattern_shouldLeaveAUrlWithoutPasswordAlone() {
-        String line = format("Request to PUT http://dev-wely-garage-service:3900/wely-avatars/avatars/u1.jpg", null);
+        String line = format("Request to PUT http://wely-storage:3900/wely-avatars/avatars/u1.jpg", null);
 
-        assertThat(line).contains("http://dev-wely-garage-service:3900/wely-avatars/avatars/u1.jpg");
+        assertThat(line).contains("http://wely-storage:3900/wely-avatars/avatars/u1.jpg");
     }
 }

@@ -6,7 +6,7 @@ masked on every line, message and stack trace alike.
 Why: WebClient writes the full request URL, userinfo included, into the message of an error answer
 ("401 Unauthorized from GET http://user:password@host/...") and into the "Request to GET ..."
 checkpoint of its stack trace. With the cause now kept on TechnicalException, those traces reach the
-ERROR log. No URL here is meant to carry credentials (callers' secrets travel in a header, Garage's
+ERROR log. No URL here is meant to carry credentials (callers' secrets travel in a header, the storage's
 keys sign the query, which WebClient leaves out of its messages, and the signer rebuilds every
 request URL from scheme, host and port only), so this is a safety net for a mistyped
 MEDIA_INTERNAL_ENDPOINT or MEDIA_PUBLIC_ENDPOINT, not a feature.

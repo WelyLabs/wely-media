@@ -107,7 +107,7 @@
 			<artifactId>spring-boot-starter-webflux-test</artifactId>
 			<scope>test</scope>
 		</dependency>
-		<!-- GarageObjectStorageAdapterIntegrationTest runs the adapter against a real Garage. -->
+		<!-- S3ObjectStorageAdapterIntegrationTest runs the adapter against a real S3 (a Garage container). -->
 		<dependency>
 			<groupId>org.testcontainers</groupId>
 			<artifactId>testcontainers-junit-jupiter</artifactId>
