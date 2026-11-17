@@ -224,9 +224,8 @@ curl -H 'X-Internal-Secret: local-chat-secret' \
 > `wely-gitops-infra` a été supprimé en novembre 2026 avec les bases qu'il déployait : depuis que
 > PostgreSQL, Neo4j, MongoDB, Kafka et le stockage des photos sont des services managés (Neon,
 > Aura, Atlas, Confluent Cloud, Cloudflare R2), un cluster local n'amorcerait qu'une coquille sans
-> rien à interroger. Pour travailler sur ce service, lance Keycloak par le `docker compose` du
-> dépôt de plateforme et donne-lui, par variables d'environnement, les URI de tes propres
-> instances — les paliers gratuits de ces cinq services suffisent.
+> rien à interroger. Pour travailler sur ce service, donne-lui, par variables d'environnement, les URI de tes
+> propres instances — les paliers gratuits de ces cinq services suffisent.
 
 ---
 
